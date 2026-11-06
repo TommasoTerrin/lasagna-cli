@@ -1,0 +1,61 @@
+lasagna: "3.0"
+id: quick-fix
+name: "Quick fix"
+version: "1.0.0"
+description: >
+  Small change or bug fix (minutes; touches at most two files and adds no
+  module, command, public symbol or dependency): no spec, no tickets. A bug
+  gets a failing test first.
+
+params:
+  test_command: { default: "pytest", description: "Whole test suite." }
+  changelog_file: { default: "CHANGELOG.md", description: "Changelog with an Unreleased section." }
+
+inputs:
+  request:
+    description: "What to change or the bug report."
+
+entry: understand
+
+nodes:
+  - id: understand
+    name: "Understand"
+    started_by: human
+    description: "Locate the change requested ({{ inputs.request }}); if it is a bug, reproduce it."
+    steps:
+      - "Find the code involved and name the files you will change: the fix node writes only those."
+      - "If the change touches more than two files, or adds a module, command, public symbol or dependency, or needs more than a session, stop and suggest the project-manager pipeline: the pipeline is blocked."
+      - "For a bug: write a test that reproduces it and observe it fail."
+    gate:
+      type: agent
+      criteria:
+        - "The change is small: it touches at most two files and adds no module, command, public symbol or dependency, and its scope is clear."
+        - "For a bug, a failing test reproduces it."
+
+  - id: fix
+    name: "Fix"
+    description: "Make the change with the minimum code; the whole suite must be green."
+    steps:
+      - "Change only the files named in the previous node and only what the request needs; follow the conventions of the surrounding code."
+      - "Run {{ params.test_command }}."
+    gate:
+      type: check
+      run: "{{ params.test_command }}"
+
+  - id: close
+    name: "Close"
+    description: "Add one line under Unreleased and commit."
+    steps:
+      - "Add one line under Unreleased in {{ params.changelog_file }} (conventional-commit style)."
+      - "Commit with the approved message."
+    resources:
+      - { type: path, ref: "{{ params.changelog_file }}", access: write }
+    gate:
+      at: entry
+      type: human
+      message: "Approve the change and the commit: diff, test result, changelog line and commit message."
+
+edges:
+  - { type: direct, from: understand, to: fix }
+  - { type: loop, from: fix, to: fix, when: fail, max_iterations: 3 }
+  - { type: direct, from: fix, to: close }

@@ -1,0 +1,38 @@
+# lasagna registry of this repository (docs/specs/v3.0.0.md §11.1).
+# The pipelines under pipelines/ are the frozen PROCESS copy (spec D11):
+# edit the product sources in src/lasagna/builtin/ instead.
+lasagna: "3.0"
+project: lasagna-cli
+agent_can_edit_pipelines: false
+
+pipelines:
+  - id: project-manager
+    path: pipelines/project-manager
+    source: { from: "src/lasagna/builtin/project-manager", version: "1.0.0" }
+    params:
+      specs_dir: "docs/specs"
+      tickets_dir: "docs/tickets"
+      current_file: "docs/current.md"
+      changelog_file: "CHANGELOG.md"
+      architecture_file: "docs/architecture.md"
+      test_command: "uv run pytest"
+      release_checklist: "docs/release-checklist.md"
+
+  - id: implementation
+    path: pipelines/implementation
+    source: { from: "src/lasagna/builtin/implementation", version: "1.0.0" }
+    params:
+      tickets_dir: "docs/tickets"
+      current_file: "docs/current.md"
+      changelog_file: "CHANGELOG.md"
+      architecture_file: "docs/architecture.md"
+      source_dir: "src/"
+      tests_dir: "tests/"
+      test_command: "uv run pytest"
+
+  - id: quick-fix
+    path: pipelines/quick-fix
+    source: { from: "src/lasagna/builtin/quick-fix", version: "1.0.0" }
+    params:
+      changelog_file: "CHANGELOG.md"
+      test_command: "uv run pytest"

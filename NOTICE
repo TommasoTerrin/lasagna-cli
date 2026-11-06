@@ -1,0 +1,17 @@
+lasagna-cli
+Copyright 2026 Tommaso Terrin
+
+This product includes software developed by Tommaso Terrin.
+
+Licensing in this repository is split by path (see REUSE.toml):
+- Apache-2.0 (LICENSE): the CLI code, the specification, the documentation
+  and the tests.
+- MIT-0 (LICENSES/MIT-0.txt): the content that `lasagna add` and `lasagna init`
+  copy into other projects, namely the built-in pipelines and their assets
+  (src/lasagna/builtin/), the protocol rules (src/lasagna/protocol/rules.md)
+  and their copies under .lasagna/. MIT-0 requires no attribution, so projects
+  can copy and adapt that content freely.
+
+"lasagna" and "lasagna-cli" are not registered trademarks. The Apache-2.0
+license does not grant permission to use the names of the project or its
+maintainer, except for describing where the software comes from.

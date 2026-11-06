@@ -1,0 +1,26 @@
+version = 1
+SPDX-PackageName = "lasagna-cli"
+SPDX-PackageSupplier = "Tommaso Terrin"
+SPDX-PackageDownloadLocation = "https://github.com/TommasoTerrin/lasagna-cli"
+
+# Default: everything is Apache-2.0 (code, specification, documentation, tests).
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Tommaso Terrin"
+SPDX-License-Identifier = "Apache-2.0"
+
+# Content that `lasagna add` / `lasagna init` copy into other projects: MIT-0, so
+# that copies need no attribution. No per-file headers on purpose: the first line
+# of rules.md is a managed version comment, and the pipeline files must stay
+# byte-identical to the spec blocks and to their process copies (spec D11).
+[[annotations]]
+path = [
+  "src/lasagna/builtin/**",
+  "src/lasagna/protocol/**",
+  ".lasagna/pipelines/**",
+  ".lasagna/rules.md",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Tommaso Terrin"
+SPDX-License-Identifier = "MIT-0"

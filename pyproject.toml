@@ -1,0 +1,38 @@
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12.0"]
+build-backend = "uv_build"
+
+[project]
+name = "lasagna-cli"
+version = "3.0.0.dev0"
+description = "A protocol to describe work processes for coding agents, and the CLI that manages it."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0 AND MIT-0"
+license-files = ["LICENSE", "NOTICE", "LICENSES/*"]
+authors = [{ name = "Tommaso Terrin" }]
+keywords = ["coding-agents", "workflow", "pipelines", "protocol", "cli"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+]
+# Runtime dependencies (typer, pydantic, ruamel.yaml) and the `lasagna` script
+# are added by ticket 01 (spec §11.2.4).
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/TommasoTerrin/lasagna-cli"
+Issues = "https://github.com/TommasoTerrin/lasagna-cli/issues"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.uv.build-backend]
+module-name = "lasagna"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"

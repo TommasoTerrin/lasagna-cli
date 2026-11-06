@@ -1,0 +1,5 @@
+# Same line endings on every platform: pipelines and their copies must stay
+# byte-identical (spec D11), and YAML/markdown diffs stay clean on Windows.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

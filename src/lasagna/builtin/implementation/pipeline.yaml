@@ -1,0 +1,142 @@
+lasagna: "3.0"
+id: implementation
+name: "Implementation"
+version: "1.0.0"
+description: >
+  One ticket, one session: contract, then red/green TDD one criterion at a
+  time with two isolated subagents, adversarial review, close with a
+  changelog entry.
+
+params:
+  tickets_dir: { default: "docs/tickets", description: "Folder of version tickets." }
+  current_file: { default: "docs/current.md", description: "Where the work stands." }
+  changelog_file: { default: "CHANGELOG.md", description: "Changelog with an Unreleased section." }
+  architecture_file: { default: "docs/architecture.md", description: "Design conventions and commands." }
+  source_dir: { default: "src/", description: "Production code." }
+  tests_dir: { default: "tests/", description: "Test code." }
+  test_command: { default: "pytest", description: "Whole test suite." }
+
+inputs:
+  ticket:
+    description: "Path of the ticket file to implement."
+
+outputs:
+  changelog_entry:
+    description: "The line added to the Unreleased section."
+
+entry: contract
+
+nodes:
+  - id: contract
+    name: "Contract"
+    started_by: human
+    description: >
+      Freeze the interface the tests and the code will share, before any test
+      is written.
+    steps:
+      - "Read the ticket, the spec criteria it lists and the architecture file; set the ticket status to in_progress."
+      - "Fill the Contract section from the template: signatures, data types, error types, return shapes, external dependencies with how tests control them, what is NOT frozen."
+      - "Fill Tests to pass as a checklist, one unchecked line per criterion in order: the test(s) to write, or for a criterion whose verification is a check or a review, the command or the review to carry out. Put the thinnest end-to-end test first if the ticket is the tracer bullet."
+      - "Work that no test can drive (deleting files, configuration, docs) is listed under Changes and done in this node or in close, never hidden in green."
+      - "If the ticket or the spec is ambiguous, or the contract would change something outside the ticket, stop and ask: the pipeline is blocked."
+    resources:
+      - { type: path, ref: "{{ inputs.ticket }}", access: write }
+      - { type: doc, ref: "{{ params.architecture_file }}", required: false }
+      - { type: doc, ref: "$pipeline/assets/contract-template.md" }
+    gate:
+      type: agent
+      by: subagent
+      criteria:
+        - "Every criterion of the ticket has at least one planned verification: a test, or the check or review that its Verification column names."
+        - "Every source of I/O or non-determinism has a row in External dependencies."
+        - "No open question remains that would make the test-writer and the implementer guess differently."
+
+  - id: red
+    name: "Red"
+    description: >
+      The test-writer writes ONE test for the next planned test of the
+      contract and observes it fail for the right reason.
+    steps:
+      - "Delegate to the test-writer subagent with: the contract, the one criterion and planned test, the test command. It must not read production code beyond the contract's signatures."
+      - "If the test-writer reports that the contract is insufficient, or the test passes immediately, stop and ask: the pipeline is blocked."
+      - "Run {{ params.test_command }} and classify the failure of the new test."
+    resources:
+      - { type: subagent, ref: "$pipeline/assets/test-writer.md" }
+      - { type: path, ref: "{{ params.tests_dir }}", access: write }
+    gate:
+      type: agent
+      criteria:
+        - "The new test fails."
+        - "It fails for the right reason: an assertion failure, or a missing name the contract declares (an ImportError or AttributeError on that name counts). Syntax errors, wrong import paths, missing test dependencies or broken fixtures are the wrong reason."
+        - "Every test that passed before still passes."
+
+  - id: green
+    name: "Green"
+    description: >
+      The implementer writes the minimum production code that makes the new
+      test pass without breaking the others.
+    steps:
+      - "Delegate to the implementer subagent with: the contract, the test name, the relevant failure lines (the assertion with expected and actual values, or the missing symbol) and the test command. Never pass it test source: it never reads or writes test files."
+      - "If the implementer objects that the failure contradicts the contract, stop and ask: the pipeline is blocked."
+      - "Run {{ params.test_command }}. Only if the whole suite is green, check off the planned test in Tests to pass and note the attempts it took: `[x] (green after N)`."
+    resources:
+      - { type: subagent, ref: "$pipeline/assets/implementer.md" }
+      - { type: path, ref: "{{ params.source_dir }}", access: write }
+    gate:
+      type: check
+      run: "{{ params.test_command }}"
+
+  - id: review
+    name: "Adversarial review"
+    description: >
+      Hunt the gaps a green suite hides, then refactor with the suite green.
+    steps:
+      - "Compare every criterion of the ticket with its verification: for a test, the test that claims to cover it (list those that would pass with a wrong implementation); for a check or a review, the evidence."
+      - "Check the code against the architecture file conventions (logic away from I/O, thin shell, no vendor types in logic)."
+      - "Refactor what the review asks, running the suite after each change."
+      - "Run each planned check and carry out each planned review; check off its line in Tests to pass with the evidence."
+      - "If a gap needs a new test, add it to Tests to pass as an unchecked line: the gate will fail and the loop takes you back to red."
+    resources:
+      - { type: subagent, ref: "$pipeline/assets/adversarial-reviewer.md", required: false, description: "Use a separate reviewer when available." }
+      - { type: doc, ref: "{{ params.architecture_file }}", required: false }
+      - { type: path, ref: "{{ params.source_dir }}", access: write }
+      - { type: path, ref: "{{ params.tests_dir }}", access: write }
+    gate:
+      type: agent
+      by: subagent
+      criteria:
+        - "Every criterion verified by a test has a test that fails on a plausible wrong implementation; every criterion verified by a check or a review has its evidence recorded."
+        - "The whole suite is green after the refactor."
+
+  - id: close
+    name: "Close the ticket"
+    description: "Record the outcome and hand over the next ready ticket."
+    steps:
+      - "Fill the Definition of done checklist and the Log line (date, outcome, cycles used per criterion, a summary of the [lasagna] lines of this session)."
+      - "Set the ticket status to done; fill the Evidence column of its rows in the traceability table of the tickets index."
+      - "Update {{ params.current_file }}: nothing in progress, and the next ready ticket (the first todo ticket in execution order whose dependencies are all done, by the tickets' status fields)."
+      - "Add one line under Unreleased in {{ params.changelog_file }} (conventional-commit style) and set the output changelog_entry."
+      - "Commit with the approved message."
+    resources:
+      - { type: path, ref: "{{ inputs.ticket }}", access: write }
+      - { type: path, ref: "{{ params.tickets_dir }}", access: write }
+      - { type: path, ref: "{{ params.current_file }}", access: write }
+      - { type: path, ref: "{{ params.changelog_file }}", access: write }
+    gate:
+      at: entry
+      type: human
+      message: "Approve closing the ticket and committing: diff, tests added, cycles used per criterion, proposed changelog line and commit message."
+
+edges:
+  - { type: direct, from: contract, to: red }
+  - { type: loop, from: red, to: red, when: fail, max_iterations: 3 }
+  - { type: direct, from: red, to: green }
+  - { type: loop, from: green, to: green, when: fail, max_iterations: 3 }
+  - type: loop
+    from: green
+    to: red
+    when: "Tests to pass has an unchecked line for a criterion verified by a test."
+    max_iterations: 30
+  - { type: direct, from: green, to: review }
+  - { type: loop, from: review, to: red, when: fail, max_iterations: 2 }
+  - { type: direct, from: review, to: close }

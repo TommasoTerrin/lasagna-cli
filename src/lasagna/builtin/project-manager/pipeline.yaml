@@ -1,0 +1,173 @@
+lasagna: "3.0"
+id: project-manager
+name: "Project manager"
+version: "1.0.0"
+description: >
+  Opens, coordinates and closes a version of the product: grilling, spec,
+  vertical-slice tickets with dependencies, dispatch of the next ticket,
+  version close. Re-enter it at the start of every planning session: it reads
+  the current file to know where the version stands.
+
+params:
+  specs_dir: { default: "docs/specs", description: "Folder of version specs." }
+  tickets_dir: { default: "docs/tickets", description: "Folder of version tickets." }
+  current_file: { default: "docs/current.md", description: "Where the work stands." }
+  changelog_file: { default: "CHANGELOG.md", description: "Changelog with an Unreleased section." }
+  architecture_file: { default: "docs/architecture.md", description: "Design conventions and commands." }
+  test_command: { default: "pytest", description: "Whole test suite." }
+  release_checklist: { default: "docs/release-checklist.md", description: "Release checklist, optional." }
+
+inputs:
+  version:
+    description: "Target version, e.g. 3.0.0."
+  goal:
+    description: "What this version must achieve, in the human's words (or a roadmap prompt)."
+    required: false
+  spec:
+    description: "Path of an already approved spec, if one exists."
+    required: false
+
+outputs:
+  next_ticket:
+    description: "Path of the next ticket to run with the implementation pipeline, if any."
+
+entry: intake
+
+nodes:
+  - id: intake
+    name: "Intake"
+    started_by: human
+    description: >
+      Find out where version {{ inputs.version }} stands by reading the
+      artifacts, not memory.
+    steps:
+      - "Read AGENTS.md, {{ params.architecture_file }} and {{ params.current_file }} if they exist."
+      - "Look for the spec ({{ inputs.spec }} or {{ params.specs_dir }}/v{{ inputs.version }}.md) and for {{ params.tickets_dir }}/v{{ inputs.version }}/README.md."
+      - "A spec counts as approved only if its status line says approved (with a date) or the human confirms it now. The tickets index counts as approved only if its Status line says so."
+      - "The status of a ticket is the status field in its own file. If the current file contradicts the tickets, trust the tickets and report the contradiction."
+      - "Report the tickets that are in_progress or blocked and ask the human before dispatching anything."
+    resources:
+      - { type: doc, ref: "AGENTS.md", required: false }
+      - { type: doc, ref: "{{ params.architecture_file }}", required: false }
+      - { type: path, ref: "{{ params.current_file }}", access: write, required: false }
+      - { type: path, ref: "{{ params.specs_dir }}", required: false }
+      - { type: path, ref: "{{ params.tickets_dir }}", required: false }
+
+  - id: grilling
+    name: "Grilling"
+    description: >
+      Socratic interview that settles scope, non-goals, constraints, risks and,
+      if not yet recorded, the separation level of the architecture (functional
+      core / imperative shell: minimal, modular or full hexagonal), before any
+      spec is written.
+    steps:
+      - "Start from the goal ({{ inputs.goal }}) and the existing artifacts; do not ask what the repository already answers."
+      - "Ask one question at a time, each with your recommended answer and why."
+      - "Cover: users and use cases, scope and non-goals, acceptance criteria, error cases, external dependencies, data and migrations, rollback, risks."
+      - "Record decided design conventions in {{ params.architecture_file }}."
+      - "Stop when the human says so or when no open question remains; list the decisions taken."
+    resources:
+      - { type: skill, ref: "grill-me", required: false, description: "Interview technique, if available." }
+      - { type: path, ref: "{{ params.architecture_file }}", access: write, required: false }
+      - { type: doc, ref: "$pipeline/assets/architecture-guide.md", description: "FCIS levels and rules." }
+
+  - id: spec
+    name: "Spec"
+    description: "Turn the grilling into a precise, self-sufficient spec."
+    steps:
+      - "Write {{ params.specs_dir }}/v{{ inputs.version }}.md from the template, with its status line set to draft."
+      - "Number every acceptance criterion (AC-NNN); each must be verifiable, and its Verification column says how: test, check or review."
+      - "Record each decision with what, why and rejected alternatives; list open points explicitly."
+    resources:
+      - { type: doc, ref: "$pipeline/assets/spec-template.md" }
+      - { type: path, ref: "{{ params.specs_dir }}", access: write }
+    gate:
+      type: human
+      message: "Approve the spec of v{{ inputs.version }} (scope, decisions, acceptance criteria)."
+
+  - id: slicing
+    name: "Slicing and triage"
+    description: >
+      Split the approved spec into vertical slices, one ticket per slice, each
+      doable in one coding session; triage the dependencies.
+    steps:
+      - "If the spec status is not approved, set it to approved with the date and the approver."
+      - "The first ticket is a tracer bullet: the thinnest end-to-end path through the system."
+      - "Every slice cuts through all layers it needs; no horizontal tickets (all models, then all commands)."
+      - "Every acceptance criterion of the spec belongs to exactly one ticket."
+      - "Write one file per ticket from the template in {{ params.tickets_dir }}/v{{ inputs.version }}/, and the index README with its Status line set to draft, the dependency table, the execution order and the traceability table (AC, ticket, verification taken from the spec)."
+      - "Set every ticket's status to todo; update {{ params.current_file }} with the version and the first ticket."
+    resources:
+      - { type: doc, ref: "{{ inputs.spec }}", required: false }
+      - { type: doc, ref: "$pipeline/assets/ticket-template.md" }
+      - { type: doc, ref: "$pipeline/assets/tickets-index-template.md" }
+      - { type: path, ref: "{{ params.specs_dir }}", access: write }
+      - { type: path, ref: "{{ params.tickets_dir }}", access: write }
+      - { type: path, ref: "{{ params.current_file }}", access: write }
+    gate:
+      type: human
+      message: "Approve the ticket plan: slices, dependencies, order."
+
+  - id: dispatch
+    name: "Dispatch"
+    description: >
+      Pick the next ticket whose dependencies are all done and hand it over to
+      a new session running the implementation pipeline.
+    steps:
+      - "If the tickets index Status is draft, set it to approved with the date: the plan was approved at the end of slicing."
+      - "Choose the first ticket in execution order with status todo and all dependencies done, reading the status field of each ticket file."
+      - "Update {{ params.current_file }}: next ticket and anything blocked."
+      - "Tell the human: open a new session and run the implementation pipeline with ticket=<path>. If you can start sessions yourself and the human agrees, do it."
+      - "Set the output next_ticket."
+    resources:
+      - { type: path, ref: "{{ params.tickets_dir }}", access: write }
+      - { type: path, ref: "{{ params.current_file }}", access: write }
+
+  - id: close_version
+    name: "Close the version"
+    description: >
+      All tickets are done: verify the whole, consolidate the changelog,
+      prepare the release.
+    steps:
+      - "Check that every acceptance criterion of the spec maps to a done ticket and to its verification evidence (a test, a check or a review, as the spec's Verification column says) in the traceability table of the tickets index."
+      - "Run the release checklist if it exists."
+      - "Move the Unreleased entries of {{ params.changelog_file }} under v{{ inputs.version }}; bump the version where the project declares it (the release checklist names the files)."
+      - "Update {{ params.current_file }}: version closed."
+    resources:
+      - { type: path, ref: "{{ params.changelog_file }}", access: write }
+      - { type: path, ref: "{{ params.current_file }}", access: write }
+      - { type: doc, ref: "{{ params.release_checklist }}", required: false }
+    gate:
+      at: entry
+      type: check
+      run: "{{ params.test_command }}"
+
+  - id: release
+    name: "Release"
+    description: "Human approval of the release (merge, tag, deploy as the project does it)."
+    steps:
+      - "Perform only the release actions the human confirmed (merge, tag, push)."
+    gate:
+      at: entry
+      type: human
+      message: "Approve the release of v{{ inputs.version }}: diff since the previous version, changelog section, traceability table."
+
+edges:
+  - type: router
+    from: intake
+    decided_by: agent
+    routes:
+      - when: "No approved spec exists for this version."
+        to: grilling
+      - when: "An approved spec exists and no approved tickets index exists."
+        to: slicing
+      - when: "An approved tickets index exists and at least one ticket is not done."
+        to: dispatch
+      - when: "Every ticket of the version is done."
+        to: close_version
+  - { type: direct, from: grilling, to: spec }
+  - { type: loop, from: spec, to: grilling, when: fail, max_iterations: 3 }
+  - { type: direct, from: spec, to: slicing }
+  - { type: loop, from: slicing, to: slicing, when: fail, max_iterations: 3 }
+  - { type: direct, from: slicing, to: dispatch }
+  - { type: direct, from: close_version, to: release }

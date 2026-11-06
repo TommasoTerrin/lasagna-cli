@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# lasagna: reserved for the optional state of protocol 3.2 (local, not shared)
+.lasagna/state.json
+
+# Claude Code: personal settings
+.claude/settings.local.json
+
+# Secrets
+.env
+
+# IDE and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

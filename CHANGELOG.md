@@ -1,0 +1,13 @@
+# Changelog
+
+All notable changes to this project are documented here. Format based on
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
+[Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+- chore: bootstrap lasagna v3 process (rules.md, registry, built-in pipelines, AGENTS.md)
+- chore: apply the pre-commit review of the M0 harness (P01-P36, see docs/reviews/2026-11-05-m0-review.md): approvals are written after their gate, `access` is a whitelist, `max_iterations` counts retries, one budget for green, the schema loses its fields without a consumer, sub-pipelines, the global library and `add git+` move to later versions
+- chore: license the code, specification, docs and tests under Apache-2.0 and the content copied into other projects under MIT-0 (REUSE.toml)
+- chore: add the minimal package scaffold (pyproject.toml, uv.lock, smoke test) so the first red fails for the right reason
+- docs: add SECURITY.md, CONTRIBUTING.md and .editorconfig
