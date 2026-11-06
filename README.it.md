@@ -12,7 +12,7 @@
 [![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)](#-stato-pre-alpha)
 [![Python ≥ 3.11](https://img.shields.io/badge/python-%E2%89%A5%203.11-green)](pyproject.toml)
 
-> **Nessuna relazione con il pacchetto [`lasagna-ai`](https://pypi.org/search/?q=lasagna-ai) su PyPI**, che è un progetto diverso. Questo repository è lasagna 3, un prodotto nuovo. Il suo predecessore è [lasagna-code](https://github.com/TommasoTerrin/lasagna-code), un plugin per Claude Code, ora deprecato.
+> **Nessuna relazione con il pacchetto [`lasagna-ai`](https://pypi.org/search/?q=lasagna-ai) su PyPI**, che è un progetto diverso. Questo repository è lasagna 3, un prodotto nuovo. È nato come [lasagna-code](https://github.com/TommasoTerrin/lasagna-code), un plugin legato a un solo agente di coding, ora deprecato perché lasagna 3 è un prodotto diverso: un protocollo indipendente dall'agente più una CLI Python, in un repository nuovo.
 
 ---
 
@@ -25,7 +25,7 @@ lasagna è un **protocollo** per descrivere processi di lavoro, più una **CLI P
 - Le **risorse** sono puntatori tipizzati (`path`, `doc`, `skill`, `subagent`, `mcp`, `cli`, `url`) che ogni fase usa, così l'agente sa di cosa ha bisogno e dove sta.
 - `rules.md` spiega il protocollo a qualunque agente. Non c'è nulla da installare nell'agente.
 
-lasagna non lancia agenti. **L'esecutore è sempre l'agente (o l'umano).** La CLI valida, disegna, copia e controlla le pipeline. Non avvia mai Claude Code, Codex, opencode o altro.
+lasagna non lancia agenti. **L'esecutore è sempre l'agente (o l'umano).** La CLI valida, disegna, copia e controlla le pipeline. Non avvia mai nessun agente di coding.
 
 ### Principi
 
@@ -266,7 +266,7 @@ I documenti di progetto in `docs/` sono in italiano. Codice, `rules.md`, pipelin
 
 ## 🔗 Rapporto con lasagna-code e lasagna-ai
 
-- **[lasagna-code](https://github.com/TommasoTerrin/lasagna-code)** è il plugin per Claude Code della versione 2. È **deprecato** e non più sviluppato. Non esiste un percorso di migrazione. Le sue idee migliori (un gate sulla spec, un contratto congelato, test-writer e implementer isolati, un budget di ritentativi per criterio, la revisione avversaria) sono nelle pipeline incluse di lasagna 3. La sua specifica resta come riferimento in [`docs/reference/lasagna-v2-spec.md`](docs/reference/lasagna-v2-spec.md).
+- **[lasagna-code](https://github.com/TommasoTerrin/lasagna-code)** è il plugin della versione 2, legato a un solo agente di coding. È **deprecato** e non più sviluppato. Non esiste un percorso di migrazione. Le sue idee migliori (un gate sulla spec, un contratto congelato, test-writer e implementer isolati, un budget di ritentativi per criterio, la revisione avversaria) sono nelle pipeline incluse di lasagna 3. La sua specifica resta come riferimento in [`docs/reference/lasagna-v2-spec.md`](docs/reference/lasagna-v2-spec.md).
 - **`lasagna-ai`** su PyPI è un progetto non correlato. Non confondere i due.
 
 ---
