@@ -12,3 +12,4 @@ All notable changes to this project are documented here. Format based on
 - chore: add the minimal package scaffold (pyproject.toml, uv.lock, smoke test) so the first red fails for the right reason
 - docs: add SECURITY.md, CONTRIBUTING.md and .editorconfig
 - feat: add the `lasagna` script with `--version` and a minimal `validate` (V01, V05, V06) over essential models, with a purity test for core/
+- test: check every forbidden form of the core purity detector against synthetic snippets, and that the scan reaches `__init__.py` and subpackages

@@ -1,6 +1,8 @@
 import ast
 from pathlib import Path
 
+import pytest
+
 import lasagna
 
 IMPURE_MODULES = {"os", "subprocess", "shutil", "socket", "random"}
@@ -74,6 +76,98 @@ def _scan_dir(directory: Path) -> tuple[dict[str, Path], dict[str, list[str]]]:
         if bad:
             problems[f"core/{rel}"] = bad
     return scanned, problems
+
+
+FORBIDDEN_IN_CORE = [
+    "import os",
+    "import os.path",
+    "import os as operating_system",
+    "from os import path",
+    "from os.path import join",
+    "import subprocess",
+    "from subprocess import run",
+    "import shutil",
+    "from shutil import copy",
+    "import socket",
+    "from socket import socket",
+    "import random",
+    "from random import choice",
+    "import lasagna.shell",
+    "import lasagna.shell.project",
+    "from lasagna.shell import project",
+    "from lasagna.shell.project import load_project",
+    "from lasagna import shell",
+    "from . import shell",
+    "from .. import shell",
+    "from .shell import project",
+    "from ..shell import project",
+    "open('f')",
+    "with open('f') as handle:\n    pass",
+]
+
+ALLOWED_IN_CORE = [
+    "import pydantic",
+    "from pathlib import PurePosixPath",
+    "from lasagna.core import models",
+    "from . import models",
+    "import osmosis",
+    "reopen('f')",
+    "handle.open()",
+]
+
+FORBIDDEN_IN_CORE_TESTS = [
+    "import mock",
+    "import unittest.mock",
+    "import pytest_mock",
+    "from mock import patch",
+    "from unittest import mock",
+    "from unittest.mock import patch",
+    "from pytest_mock import MockerFixture",
+    "def test_x(monkeypatch):\n    pass",
+    "def test_x(mocker):\n    pass",
+    "def test_x(tmp_path, *, mocker):\n    pass",
+    "async def test_x(monkeypatch):\n    pass",
+]
+
+ALLOWED_IN_CORE_TESTS = [
+    "import pytest",
+    "from unittest import TestCase",
+    "def test_x(tmp_path):\n    pass",
+]
+
+
+# AC-V3-022
+@pytest.mark.parametrize("snippet", FORBIDDEN_IN_CORE)
+def test_core_detector_flags_every_forbidden_form(snippet):
+    assert _core_violations(ast.parse(snippet)) != []
+
+
+# AC-V3-022
+@pytest.mark.parametrize("snippet", ALLOWED_IN_CORE)
+def test_core_detector_accepts_pure_code(snippet):
+    assert _core_violations(ast.parse(snippet)) == []
+
+
+# AC-V3-022
+@pytest.mark.parametrize("snippet", FORBIDDEN_IN_CORE_TESTS)
+def test_mock_detector_flags_every_double(snippet):
+    assert _test_violations(ast.parse(snippet)) != []
+
+
+# AC-V3-022
+@pytest.mark.parametrize("snippet", ALLOWED_IN_CORE_TESTS)
+def test_mock_detector_accepts_plain_tests(snippet):
+    assert _test_violations(ast.parse(snippet)) == []
+
+
+# AC-V3-022
+def test_purity_scan_checks_init_files(tmp_path):
+    (tmp_path / "__init__.py").write_text("import os\n", encoding="utf-8")
+
+    scanned, problems = _scan_dir(tmp_path)
+
+    assert "__init__.py" in scanned
+    assert problems == {"core/__init__.py": ["import os"]}
 
 
 # AC-V3-022
