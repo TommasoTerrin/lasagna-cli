@@ -51,5 +51,5 @@ uv run lasagna --version
 Lo scaffold minimo (`pyproject.toml`, `src/lasagna/__init__.py`,
 `tests/test_smoke.py`, `.python-version`, `uv.lock`) esiste già dal bootstrap
 M0 (spec §11.2.1, P25), così il primo `red` fallisce per la ragione giusta. Lo
-script `lasagna`, `--version`, le dipendenze e la CI arrivano con il primo
-ticket (M1).
+script `lasagna`, `--version`, le dipendenze arrivano con il primo
+ticket (M1); la CI è rinviata alla 3.0.1.

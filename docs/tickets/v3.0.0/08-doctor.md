@@ -24,7 +24,7 @@ risorsa secondo il §8.7 ed esce 1 se manca una risorsa `required`. `check` e
   `core/doctor.py` decide l'esito senza I/O.
 - Questo repo vive in una cartella con spazi (OneDrive): i test di
   AC-V3-027 usano `tmp_path` con una sottocartella con spazi e girano anche
-  nella CI Windows.
+  anche su Windows (la CI è della 3.0.1: per ora in locale).
 
 ## Changes
 

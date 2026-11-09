@@ -105,6 +105,7 @@ cambiando solo i parametri nel registry, senza modificare i file delle pipeline.
 | Versione | Tema | Dipende da |
 |---|---|---|
 | **3.0.0** | Protocollo 3.0, CLI di base, pipeline incluse, dogfooding | — |
+| **3.0.1** | CI su GitHub e protezione di `main` (rinviate dalla 3.0.0) | 3.0.0 funzionante |
 | **3.1.0** | Adapter (Claude Code per primo) e suite di conformità | 3.0 |
 | **3.2.0** | Stato, resume e cicli `foreach` | 3.0 |
 | **3.3.0** | Trigger e automazione (routine sulle issue GitHub) | 3.1, 3.2 |
@@ -149,6 +150,22 @@ validazione completa → M3 lettura per agenti → M4 check e doctor → M5
 globale, indice remoto, RBAC, telemetria.
 
 **Criterio di successo:** §1.4.
+
+### 3.1 Versione 3.0.1 — CI e protezione di `main`
+
+Rinviata dalla 3.0.0 (decisione del maintainer, 2026-11-06): finché la 3.0.0
+non è funzionante la usa solo lui in locale, e `ruff` + `pytest` si lanciano con
+`uv run`. Si fa quando esiste una 3.0.0 funzionante.
+
+- `.github/workflows/ci.yml`: `ruff check` + `pytest` su Python 3.11 e 3.15, su
+  Ubuntu e Windows (era AC-V3-004, verifica `check`: l'evidenza è un run su
+  GitHub, che richiede un push approvato).
+- Protezione di `main` con i job del workflow come check obbligatori (azione
+  del maintainer su GitHub).
+- Rimettere in `docs/release-checklist.md` la riga "CI verde su Ubuntu e
+  Windows, Python 3.11 e 3.15".
+- Se i test sono stati scritti solo su Windows, il primo run su Ubuntu e su 3.15
+  può far emergere differenze (path, fine riga): previsto tempo per correggerle.
 
 ---
 

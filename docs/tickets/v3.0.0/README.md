@@ -13,7 +13,7 @@ The state of each ticket lives only in its own `status` field.
 
 | # | Ticket | Depends on |
 |---|---|---|
-| 01 | [Tracer bullet: script `lasagna`, `--version`, `validate` minimo, CI](01-tracer-bullet.md) (tracer bullet) | — |
+| 01 | [Tracer bullet: script `lasagna`, `--version`, `validate` minimo](01-tracer-bullet.md) (tracer bullet) | — |
 | 02 | [Modello completo, chiavi `x-*`, JSON Schema](02-full-model-and-schema.md) | 01 |
 | 03 | [Regole del grafo (V07, V10, V12), `--json` e formato dei messaggi](03-graph-rules-and-messages.md) | 02 |
 | 04 | [Templating, `$pipeline/` e `lasagna show`](04-templating-and-show.md) | 02 |
@@ -30,7 +30,7 @@ The state of each ticket lives only in its own `status` field.
 ## Execution order
 
 1. 01 — la via più sottile da capo a fondo: script, `--version`, `validate`
-   con tre regole, CI e purezza di `core/` dal primo modulo.
+   con tre regole e purezza di `core/` dal primo modulo (la CI è della 3.0.1).
 2. 02 — il modello completo: senza, nessun altro comando legge pipeline vere,
    e il `.lasagna/` di questo repo non si può auto-validare.
 3. 03 — regole del grafo e formato dei messaggi, che tutte le regole
@@ -57,7 +57,7 @@ Every acceptance criterion of the spec appears exactly once. Verification is
 taken from the spec (`test`, `check` or `review`). Evidence is filled in when
 the ticket closes: the test names, the command run, or the review note.
 
-I criteri ritirati AC-V3-012, AC-V3-031, AC-V3-032 e AC-V3-033 (spec §13) non
+I criteri ritirati AC-V3-004, AC-V3-012, AC-V3-031, AC-V3-032 e AC-V3-033 (spec §13) non
 hanno ticket.
 
 | AC | Ticket | Verification | Evidence |
@@ -65,7 +65,6 @@ hanno ticket.
 | AC-V3-001 | 01 | check | |
 | AC-V3-002 | 01 | test | |
 | AC-V3-003 | 01 | test | |
-| AC-V3-004 | 01 | check | |
 | AC-V3-005 | 02 | test | |
 | AC-V3-006 | 02 | test | |
 | AC-V3-007 | 06 | test | |
@@ -118,7 +117,7 @@ hanno ticket.
   in italiano (AGENTS.md, regola 5).
 - Messaggi d'errore: inglese, su stderr, con la correzione suggerita; exit 0
   ok, 1 contenuto, 2 uso (spec §8). La tabella §8.11 completa è del ticket 11.
-- Nessuna rete nei test; i test girano su Windows e Linux (CI). Path con
+- Nessuna rete nei test; i test devono poter girare su Windows e Linux (la CI che lo verifica è della 3.0.1). Path con
   `pathlib`, `/` nei file YAML.
 - D11: i ticket modificano solo `src/lasagna/builtin/` e
   `src/lasagna/protocol/rules.md`, mai `.lasagna/` (salvo hotfix di processo
