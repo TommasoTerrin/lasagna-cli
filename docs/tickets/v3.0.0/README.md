@@ -62,9 +62,9 @@ hanno ticket.
 
 | AC | Ticket | Verification | Evidence |
 |---|---|---|---|
-| AC-V3-001 | 01 | check | |
-| AC-V3-002 | 01 | test | |
-| AC-V3-003 | 01 | test | |
+| AC-V3-001 | 01 | check | clean copy (tracked+new files, no `.venv/`), 2026-11-09: `uv sync` ok, `uv run pytest` green, `uv run lasagna --version` exit 0; `pyproject.toml` has `[project.scripts] lasagna` and `requires-python >=3.11` |
+| AC-V3-002 | 01 | test | `tests/e2e/test_version.py` (exact output, mutant without protocol killed) |
+| AC-V3-003 | 01 | test | `tests/e2e/test_validate.py` (exit 0; exit 1 with V06, file, `edges[0].to`), `tests/core/test_validate_v06.py` |
 | AC-V3-005 | 02 | test | |
 | AC-V3-006 | 02 | test | |
 | AC-V3-007 | 06 | test | |
@@ -81,7 +81,7 @@ hanno ticket.
 | AC-V3-019 | 04 | test | |
 | AC-V3-020 | 05 | test | |
 | AC-V3-021 | 05 | test | |
-| AC-V3-022 | 01 | test | |
+| AC-V3-022 | 01 | test | `tests/core/test_purity.py` (AST scan, recursive); mutation review: `import os` and `open()` in `core/` fail it |
 | AC-V3-023 | 07 | test | |
 | AC-V3-024 | 10 | test | |
 | AC-V3-025 | 08 | test | |

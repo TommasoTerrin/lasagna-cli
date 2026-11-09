@@ -11,3 +11,4 @@ All notable changes to this project are documented here. Format based on
 - chore: license the code, specification, docs and tests under Apache-2.0 and the content copied into other projects under MIT-0 (REUSE.toml)
 - chore: add the minimal package scaffold (pyproject.toml, uv.lock, smoke test) so the first red fails for the right reason
 - docs: add SECURITY.md, CONTRIBUTING.md and .editorconfig
+- feat: add the `lasagna` script with `--version` and a minimal `validate` (V01, V05, V06) over essential models, with a purity test for core/

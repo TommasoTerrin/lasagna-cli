@@ -17,9 +17,14 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
 ]
-# Runtime dependencies (typer, pydantic, ruamel.yaml) and the `lasagna` script
-# are added by ticket 01 (spec §11.2.4).
-dependencies = []
+dependencies = [
+    "pydantic>=2",
+    "ruamel-yaml>=0.19.1",
+    "typer>=0.28.0",
+]
+
+[project.scripts]
+lasagna = "lasagna.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/TommasoTerrin/lasagna-cli"
