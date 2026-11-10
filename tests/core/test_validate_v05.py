@@ -12,7 +12,7 @@ PIPELINE = {
     "lasagna": "3.0",
     "id": "demo",
     "entry": "a",
-    "nodes": [{"id": "a"}, {"id": "b"}],
+    "nodes": [{"id": "a", "description": "A"}, {"id": "b", "description": "B"}],
     "edges": [{"type": "direct", "from": "a", "to": "b"}],
 }
 

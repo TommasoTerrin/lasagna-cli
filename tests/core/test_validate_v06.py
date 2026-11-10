@@ -8,7 +8,7 @@ def _pipeline(second_from: str) -> dict:
         "lasagna": "3.0",
         "id": "demo",
         "entry": "a",
-        "nodes": [{"id": "a"}, {"id": "b"}, {"id": "c"}, {"id": "d"}],
+        "nodes": [{"id": "a", "description": "A"}, {"id": "b", "description": "B"}, {"id": "c", "description": "C"}, {"id": "d", "description": "D"}],
         "edges": [
             {"type": "direct", "from": "a", "to": "b"},
             {"type": "direct", "from": second_from, "to": "c"},

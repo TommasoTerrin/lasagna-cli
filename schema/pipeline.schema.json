@@ -1,0 +1,584 @@
+{
+  "$defs": {
+    "DirectEdge": {
+      "additionalProperties": false,
+      "description": "A direct edge between two nodes.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "type": {
+          "const": "direct",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "from",
+        "to"
+      ],
+      "title": "DirectEdge",
+      "type": "object"
+    },
+    "Gate": {
+      "additionalProperties": false,
+      "description": "A gate of a node.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "at": {
+          "default": "exit",
+          "enum": [
+            "entry",
+            "exit"
+          ],
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "default": "self",
+          "enum": [
+            "self",
+            "subagent"
+          ],
+          "title": "By",
+          "type": "string"
+        },
+        "criteria": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Criteria"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "type": {
+          "enum": [
+            "human",
+            "check",
+            "agent"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Gate",
+      "type": "object"
+    },
+    "InputDef": {
+      "additionalProperties": false,
+      "description": "An input definition of a pipeline.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "title": "InputDef",
+      "type": "object"
+    },
+    "LoopEdge": {
+      "additionalProperties": false,
+      "description": "A loop edge: goes back to an earlier node, a bounded number of times.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "max_iterations": {
+          "title": "Max Iterations",
+          "type": "integer"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "type": {
+          "const": "loop",
+          "title": "Type",
+          "type": "string"
+        },
+        "when": {
+          "default": "fail",
+          "title": "When",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "from",
+        "to",
+        "max_iterations"
+      ],
+      "title": "LoopEdge",
+      "type": "object"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "description": "A node of a pipeline.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Gate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "resources": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Resource"
+          },
+          "title": "Resources",
+          "type": "array"
+        },
+        "started_by": {
+          "default": "agent",
+          "enum": [
+            "agent",
+            "human"
+          ],
+          "title": "Started By",
+          "type": "string"
+        },
+        "steps": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "OutputDef": {
+      "additionalProperties": false,
+      "description": "An output definition of a pipeline.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "title": "OutputDef",
+      "type": "object"
+    },
+    "ParamDef": {
+      "additionalProperties": false,
+      "description": "A parameter definition of a pipeline.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "default": {
+          "title": "Default",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "required": [
+        "default"
+      ],
+      "title": "ParamDef",
+      "type": "object"
+    },
+    "Resource": {
+      "additionalProperties": false,
+      "description": "A resource used by a node.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "access": {
+          "default": "read",
+          "enum": [
+            "read",
+            "write"
+          ],
+          "title": "Access",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "ref"
+      ],
+      "title": "Resource",
+      "type": "object"
+    },
+    "Route": {
+      "additionalProperties": false,
+      "description": "A route of a router edge.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Run"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "to"
+      ],
+      "title": "Route",
+      "type": "object"
+    },
+    "RouterEdge": {
+      "additionalProperties": false,
+      "description": "A router edge: picks one of several routes.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "decided_by": {
+          "enum": [
+            "agent",
+            "human",
+            "check"
+          ],
+          "title": "Decided By",
+          "type": "string"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default"
+        },
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "routes": {
+          "items": {
+            "$ref": "#/$defs/Route"
+          },
+          "title": "Routes",
+          "type": "array"
+        },
+        "type": {
+          "const": "router",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "from",
+        "decided_by",
+        "routes"
+      ],
+      "title": "RouterEdge",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A `pipeline.yaml` file.",
+  "patternProperties": {
+    "^x-": {}
+  },
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "edges": {
+      "default": [],
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "direct": "#/$defs/DirectEdge",
+            "loop": "#/$defs/LoopEdge",
+            "router": "#/$defs/RouterEdge"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/DirectEdge"
+          },
+          {
+            "$ref": "#/$defs/LoopEdge"
+          },
+          {
+            "$ref": "#/$defs/RouterEdge"
+          }
+        ]
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "entry": {
+      "title": "Entry",
+      "type": "string"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "inputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/InputDef"
+      },
+      "default": {},
+      "propertyNames": {
+        "not": {
+          "pattern": "^x-"
+        }
+      },
+      "title": "Inputs",
+      "type": "object"
+    },
+    "lasagna": {
+      "title": "Lasagna",
+      "type": "string"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Name"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/Node"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "outputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/OutputDef"
+      },
+      "default": {},
+      "propertyNames": {
+        "not": {
+          "pattern": "^x-"
+        }
+      },
+      "title": "Outputs",
+      "type": "object"
+    },
+    "params": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ParamDef"
+      },
+      "default": {},
+      "propertyNames": {
+        "not": {
+          "pattern": "^x-"
+        }
+      },
+      "title": "Params",
+      "type": "object"
+    },
+    "version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Version"
+    }
+  },
+  "required": [
+    "lasagna",
+    "id",
+    "entry",
+    "nodes"
+  ],
+  "title": "Pipeline",
+  "type": "object"
+}

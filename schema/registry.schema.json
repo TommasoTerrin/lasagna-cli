@@ -1,0 +1,127 @@
+{
+  "$defs": {
+    "RegistryEntry": {
+      "additionalProperties": false,
+      "description": "A pipeline listed in the registry.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "propertyNames": {
+            "not": {
+              "pattern": "^x-"
+            }
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Source"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "path"
+      ],
+      "title": "RegistryEntry",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Where a registry pipeline was copied from.",
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "title": "Source",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The `.lasagna/pipelines.yaml` file.",
+  "patternProperties": {
+    "^x-": {}
+  },
+  "properties": {
+    "agent_can_edit_pipelines": {
+      "default": false,
+      "title": "Agent Can Edit Pipelines",
+      "type": "boolean"
+    },
+    "lasagna": {
+      "title": "Lasagna",
+      "type": "string"
+    },
+    "pipelines": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RegistryEntry"
+      },
+      "title": "Pipelines",
+      "type": "array"
+    },
+    "project": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project"
+    }
+  },
+  "required": [
+    "lasagna"
+  ],
+  "title": "Registry",
+  "type": "object"
+}

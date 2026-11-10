@@ -4,7 +4,7 @@ from collections.abc import Mapping
 
 from pydantic import ValidationError
 
-from lasagna.core.models import Finding, Pipeline, Registry
+from lasagna.core.models import Finding, Pipeline, Registry, RouterEdge
 
 REGISTRY_FILE: str = ".lasagna/pipelines.yaml"
 
@@ -17,7 +17,16 @@ def pipeline_file(entry_path: str) -> str:
 def _yaml_path(loc: tuple[int | str, ...]) -> str:
     """Convert a pydantic error loc to a YAML path such as 'edges[0].to'."""
     path = ""
-    for part in loc:
+    for i, part in enumerate(loc):
+        if (
+            i >= 2
+            and loc[i - 2] == "edges"
+            and isinstance(loc[i - 1], int)
+            and part in ("direct", "loop", "router")
+        ):
+            continue
+        if part == "[key]":
+            continue
         if isinstance(part, int):
             path += f"[{part}]"
         else:
@@ -31,7 +40,13 @@ def _v01_findings(file: str, error: ValidationError) -> list[Finding]:
         Finding(
             "V01",
             file,
-            _yaml_path(item["loc"]),
+            _yaml_path(
+                item["loc"] + ("type",)
+                if item["type"] in ("union_tag_invalid", "union_tag_not_found")
+                and len(item["loc"]) == 2
+                and item["loc"][0] == "edges"
+                else item["loc"]
+            ),
             f"{item['msg']}; fix or remove this value.",
         )
         for item in error.errors()
@@ -80,13 +95,23 @@ def validate_project(
             )
         ids = {node.id for node in pipeline.nodes}
         for j, edge in enumerate(pipeline.edges):
-            for key, value in (("from", edge.from_), ("to", edge.to)):
+            if isinstance(edge, RouterEdge):
+                refs = [("from", f"edges[{j}].from", edge.from_)] + [
+                    ("to", f"edges[{j}].routes[{k}].to", route.to)
+                    for k, route in enumerate(edge.routes)
+                ]
+            else:
+                refs = [
+                    ("from", f"edges[{j}].from", edge.from_),
+                    ("to", f"edges[{j}].to", edge.to),
+                ]
+            for key, path, value in refs:
                 if value not in ids:
                     findings.append(
                         Finding(
                             "V06",
                             pipeline_file(entry.path),
-                            f"edges[{j}].{key}",
+                            path,
                             f"edge {key} '{value}' is not a node id; "
                             "use the id of a node of this pipeline.",
                         )
