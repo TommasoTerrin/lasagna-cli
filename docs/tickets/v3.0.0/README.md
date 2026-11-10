@@ -69,10 +69,10 @@ hanno ticket.
 | AC-V3-006 | 02 | test | `tests/core/test_extension_keys.py` (14 fixed-key objects, 4 user-key maps, near-miss and non-string keys); mutations M01, M02, M13 |
 | AC-V3-007 | 06 | test | |
 | AC-V3-008 | 06 | test | |
-| AC-V3-009 | 03 | test | |
-| AC-V3-010 | 03 | test | |
-| AC-V3-011 | 03 | test | |
-| AC-V3-013 | 03 | test | |
+| AC-V3-009 | 03 | test | `tests/core/test_validate_v07.py` (entry names no node, absent or null entry, wrong type stays V01, valid entries incl. a loop on the first node, composition with V05/V06/V10, disabled and several pipelines), `tests/core/test_models_null_and_empty.py`; mutations M14-M21, M36, M37, M40 |
+| AC-V3-010 | 03 | test | `tests/core/test_validate_v10.py` (direct/router combinations, loops do not count, one finding per node, unknown `from`), `tests/core/test_graph.py` (`outgoing_edges`, `is_forward`); mutations M01-M06, M22, M23, M35 |
+| AC-V3-011 | 03 | test | `tests/core/test_validate_v12.py` (explicit and default `when: fail`, exact and case-sensitive, any gate type incl. `at: entry`, per edge, unknown `from`); mutations M07-M13, M34 |
+| AC-V3-013 | 03 | test | `tests/core/test_render_json.py` (exact text), `tests/e2e/test_validate_json.py` (valid project, V06, loading findings, exit 2 on stderr, V07/V10/V12), `tests/e2e/test_validate_utf8.py` (real subprocess, piped stdout); mutations M26-M30, M33 |
 | AC-V3-014 | 02 | test | `tests/core/test_schema.py`, `tests/e2e/test_gen_schema.py` (committed `schema/*.json` compared byte by byte with `render_schema`); mutations M03, M10, M11, M14; check: schema hash unchanged after regeneration |
 | AC-V3-015 | 04 | test | |
 | AC-V3-016 | 04 | test | |
@@ -101,7 +101,7 @@ hanno ticket.
 | AC-V3-042 | 13 | review | |
 | AC-V3-043 | 13 | check | |
 | AC-V3-044 | 11 | test | |
-| AC-V3-045 | 03 | test | |
+| AC-V3-045 | 03 | test | `tests/core/test_message_format.py`, `tests/shell/test_loading_messages.py` (format `<problem>; <fix>.` for every rule and loading finding), `tests/e2e/test_validate_streams.py` (human output, `ok:` line); mutations M24, M25, M31, M38, M39 |
 | AC-V3-046 | 11 | test | |
 | AC-V3-047 | 09 | test | |
 | AC-V3-048 | 10 | test | |
