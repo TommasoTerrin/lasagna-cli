@@ -61,22 +61,22 @@ def test_explicit_null_is_accepted_only_where_the_field_is_optional_with_none_de
 
 # AC-V3-005
 @pytest.mark.parametrize(
-    ("node_patch", "pipeline_patch"),
+    ("node_patch", "pipeline_patch", "expected"),
     [
-        pytest.param({"description": ""}, {}, id="node-description-empty"),
-        pytest.param({"steps": []}, {}, id="node-steps-empty"),
+        pytest.param({"description": ""}, {}, [], id="node-description-empty"),
+        pytest.param({"steps": []}, {}, [], id="node-steps-empty"),
         pytest.param(
-            {"resources": [{"type": "doc", "ref": ""}]}, {}, id="resource-ref-empty"
+            {"resources": [{"type": "doc", "ref": ""}]}, {}, [], id="resource-ref-empty"
         ),
         pytest.param(
-            {"gate": {"type": "agent", "criteria": []}}, {}, id="gate-criteria-empty"
+            {"gate": {"type": "agent", "criteria": []}}, {}, [], id="gate-criteria-empty"
         ),
-        pytest.param({}, {"edges": []}, id="edges-empty"),
-        pytest.param({}, {"nodes": [], "edges": []}, id="nodes-and-edges-empty"),
+        pytest.param({}, {"edges": []}, [], id="edges-empty"),
+        pytest.param({}, {"nodes": [], "edges": []}, [("V07", PF, "entry")], id="nodes-and-edges-empty"),
     ],
 )
 def test_empty_values_are_valid_for_the_shape_and_do_not_count_as_absent(
-    node_patch, pipeline_patch
+    node_patch, pipeline_patch, expected
 ):
     pipeline = {
         **P0,
@@ -84,4 +84,6 @@ def test_empty_values_are_valid_for_the_shape_and_do_not_count_as_absent(
         **pipeline_patch,
     }
 
-    assert validate_project(R0, {"pipelines/demo": pipeline}) == []
+    findings = validate_project(R0, {"pipelines/demo": pipeline})
+
+    assert sorted((f.rule, f.file, f.path) for f in findings) == sorted(expected)

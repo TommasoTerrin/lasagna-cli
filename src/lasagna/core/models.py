@@ -173,7 +173,7 @@ class Pipeline(_FixedKeys):
 
     lasagna: str
     id: str
-    entry: str
+    entry: str | None = None
     nodes: list[Node]
     name: str | None = None
     version: str | None = None

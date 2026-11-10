@@ -31,13 +31,13 @@ def find_project_root(start: Path) -> Path | None:
 def _syntax_finding(file: str, error: YAMLError) -> Finding:
     """Build the V01 finding for a YAML file that cannot be parsed."""
     mark = getattr(error, "problem_mark", None)
-    line = f"line {mark.line + 1}: " if mark is not None else ""
-    return Finding("V01", file, "", f"malformed YAML at {line}fix the syntax.")
+    at = f" at line {mark.line + 1}" if mark is not None else ""
+    return Finding("V01", file, "", f"malformed YAML{at}; fix the syntax.")
 
 
 def _empty_finding(file: str, what: str) -> Finding:
     """Build the V01 finding for a YAML file with no content."""
-    return Finding("V01", file, "", f"empty YAML file: add the {what} definition.")
+    return Finding("V01", file, "", f"empty YAML file; add the {what} definition.")
 
 
 def _registry_failed(root: Path, finding: Finding) -> ProjectData:
@@ -51,7 +51,7 @@ def load_project(root: Path) -> ProjectData:
     registry_file = root / ".lasagna" / "pipelines.yaml"
     if not registry_file.exists():
         missing = Finding(
-            "V01", REGISTRY_FILE, "", "registry file not found: create .lasagna/pipelines.yaml."
+            "V01", REGISTRY_FILE, "", "registry file not found; create .lasagna/pipelines.yaml."
         )
         return _registry_failed(root, missing)
     try:

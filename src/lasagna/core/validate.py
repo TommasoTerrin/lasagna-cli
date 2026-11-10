@@ -1,10 +1,12 @@
 """Validation rules for a lasagna project, as pure functions."""
 
-from collections.abc import Mapping
+import json
+from collections.abc import Mapping, Sequence
 
 from pydantic import ValidationError
 
-from lasagna.core.models import Finding, Pipeline, Registry, RouterEdge
+from lasagna.core.graph import is_forward, outgoing_edges
+from lasagna.core.models import Finding, LoopEdge, Pipeline, Registry, RouterEdge
 
 REGISTRY_FILE: str = ".lasagna/pipelines.yaml"
 
@@ -116,6 +118,54 @@ def validate_project(
                             "use the id of a node of this pipeline.",
                         )
                     )
+        if pipeline.entry is None:
+            findings.append(
+                Finding(
+                    "V07",
+                    pipeline_file(entry.path),
+                    "entry",
+                    "entry is missing; set it to the id of a node of this pipeline.",
+                )
+            )
+        elif pipeline.entry not in ids:
+            findings.append(
+                Finding(
+                    "V07",
+                    pipeline_file(entry.path),
+                    "entry",
+                    f"entry '{pipeline.entry}' is not a node id; "
+                    "use the id of a node of this pipeline.",
+                )
+            )
+        for node_id, outgoing in outgoing_edges(pipeline).items():
+            forward = [j for j, edge in outgoing if is_forward(edge)]
+            if len(forward) >= 2:
+                findings.append(
+                    Finding(
+                        "V10",
+                        pipeline_file(entry.path),
+                        f"edges[{forward[1]}]",
+                        f"node '{node_id}' has more than one forward edge; "
+                        "keep one forward edge or use a router.",
+                    )
+                )
+        gated = {node.id for node in pipeline.nodes if node.gate is not None}
+        ungated = {node.id for node in pipeline.nodes if node.gate is None}
+        for j, edge in enumerate(pipeline.edges):
+            if (
+                isinstance(edge, LoopEdge)
+                and edge.when == "fail"
+                and edge.from_ in ungated - gated
+            ):
+                findings.append(
+                    Finding(
+                        "V12",
+                        pipeline_file(entry.path),
+                        f"edges[{j}]",
+                        f"loop edge leaves node '{edge.from_}' which has no gate; "
+                        "add a gate to the node.",
+                    )
+                )
     return findings
 
 
@@ -123,3 +173,16 @@ def format_finding(finding: Finding) -> str:
     """Render a finding as one plain-text line."""
     where = f"{finding.file} {finding.path}".rstrip()
     return f"{finding.level} {finding.rule} {where}: {finding.message}"
+
+
+def render_json(findings: Sequence[Finding]) -> str:
+    """Render findings as the JSON document of `validate --json`."""
+
+    def entry(f: Finding) -> dict[str, str]:
+        return {"rule": f.rule, "file": f.file, "path": f.path, "message": f.message}
+
+    doc = {
+        "errors": [entry(f) for f in findings if f.level == "error"],
+        "warnings": [entry(f) for f in findings if f.level == "warning"],
+    }
+    return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"

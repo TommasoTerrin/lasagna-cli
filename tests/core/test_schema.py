@@ -101,3 +101,13 @@ def test_user_named_maps_forbid_x_keys_as_names_in_the_schema(kind, name, field)
     definition = _schema_object(kind, name)
 
     assert definition["properties"][field]["propertyNames"] == {"not": {"pattern": "^x-"}}
+
+
+# AC-V3-014
+def test_pipeline_schema_makes_entry_optional_while_lasagna_id_nodes_stay_required():
+    pipeline = json.loads(render_schema("pipeline"))
+
+    assert "entry" in pipeline["properties"]
+    assert "entry" not in pipeline["required"]
+    for name in ("lasagna", "id", "nodes"):
+        assert name in pipeline["required"], name

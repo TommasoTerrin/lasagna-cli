@@ -10,7 +10,12 @@ P0 = {
     "lasagna": "3.0",
     "id": "demo",
     "entry": "a",
-    "nodes": [{"id": "a", "description": "A"}, {"id": "b", "description": "B"}],
+    # `b` has a gate (V12: the loops of this file leave from `b`) and the routers
+    # leave from `b` too (V10: `a` already has its one forward edge).
+    "nodes": [
+        {"id": "a", "description": "A"},
+        {"id": "b", "description": "B", "gate": {"type": "human", "message": "m"}},
+    ],
     "edges": [{"type": "direct", "from": "a", "to": "b"}],
 }
 
@@ -68,7 +73,7 @@ def test_loop_edge_requires_an_integer_max_iterations_and_accepts_any_when_text(
 def _router(**fields):
     base = {
         "type": "router",
-        "from": "a",
+        "from": "b",
         "decided_by": "agent",
         "routes": [{"when": "w", "to": "b"}, {"when": "w2", "to": "a"}],
         "default": "b",
@@ -127,7 +132,7 @@ def test_router_edge_accepts_any_route_list_and_rejects_malformed_decisions_and_
 
 _ROUTER_OK = {
     "type": "router",
-    "from": "a",
+    "from": "b",
     "decided_by": "agent",
     "routes": [{"when": "w", "to": "b"}, {"when": "w2", "to": "a"}],
 }

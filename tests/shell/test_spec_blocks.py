@@ -109,11 +109,22 @@ def test_spec_edges_fragment_validates_clean_with_nodes_for_every_cited_id():
             if node_id is not None and node_id not in ids:
                 ids.append(node_id)
 
+    # V12: a loop that is taken on `when: fail` leaves from a node that has a gate.
+    gated = {
+        edge["from"]
+        for edge in edges
+        if edge["type"] == "loop" and edge.get("when", "fail") == "fail"
+    }
+    gate = {"type": "human", "message": "m"}
     pipeline = {
         "lasagna": "3.0",
         "id": "demo",
         "entry": ids[0],
-        "nodes": [{"id": node_id, "description": node_id.upper()} for node_id in ids],
+        "nodes": [
+            {"id": node_id, "description": node_id.upper()}
+            | ({"gate": gate} if node_id in gated else {})
+            for node_id in ids
+        ],
         "edges": edges,
     }
     registry = {"lasagna": "3.0", "pipelines": [{"id": "demo", "path": "pipelines/demo"}]}

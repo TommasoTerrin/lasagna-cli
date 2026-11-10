@@ -491,8 +491,16 @@
       "type": "array"
     },
     "entry": {
-      "title": "Entry",
-      "type": "string"
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Entry"
     },
     "id": {
       "title": "Id",
@@ -576,7 +584,6 @@
   "required": [
     "lasagna",
     "id",
-    "entry",
     "nodes"
   ],
   "title": "Pipeline",

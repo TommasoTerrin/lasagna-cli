@@ -32,7 +32,7 @@ def test_loop_edge_with_unknown_from_and_to_is_reported_for_both_fields():
 def _router(**changes):
     edge = {
         "type": "router",
-        "from": "a",
+        "from": "b",
         "decided_by": "agent",
         "routes": [{"when": "w", "to": "b"}, {"when": "w2", "to": "a"}],
     }

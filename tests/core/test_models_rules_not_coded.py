@@ -36,9 +36,8 @@ _ONE_ROUTE_ROUTER = {
             id="malformed-node-id-v03",
         ),
         pytest.param({**P0, "version": "banana"}, id="non-semver-version-v04"),
-        pytest.param({**P0, "entry": "ghost"}, id="entry-names-no-node-v07"),
         pytest.param(
-            {**P0, "edges": [*P0["edges"], _ONE_ROUTE_ROUTER]},
+            {**P0, "edges": [_ONE_ROUTE_ROUTER]},
             id="router-with-one-route-v13",
         ),
     ],

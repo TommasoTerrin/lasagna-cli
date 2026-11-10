@@ -9,7 +9,11 @@ P0 = {
     "lasagna": "3.0",
     "id": "demo",
     "entry": "a",
-    "nodes": [{"id": "a", "description": "A"}, {"id": "b", "description": "B"}],
+    # `b` has a gate (V12: LOOP leaves from `b`); ROUTER leaves from `b` too (V10).
+    "nodes": [
+        {"id": "a", "description": "A"},
+        {"id": "b", "description": "B", "gate": {"type": "human", "message": "m"}},
+    ],
     "edges": [{"type": "direct", "from": "a", "to": "b"}],
 }
 RF = ".lasagna/pipelines.yaml"
@@ -18,7 +22,7 @@ PF = ".lasagna/pipelines/demo/pipeline.yaml"
 LOOP = {"type": "loop", "from": "b", "to": "a", "max_iterations": 3}
 ROUTER = {
     "type": "router",
-    "from": "a",
+    "from": "b",
     "decided_by": "agent",
     "routes": [{"when": "w", "to": "b"}, {"when": "w2", "to": "a"}],
 }

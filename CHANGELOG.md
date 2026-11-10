@@ -14,3 +14,4 @@ All notable changes to this project are documented here. Format based on
 - feat: add the `lasagna` script with `--version` and a minimal `validate` (V01, V05, V06) over essential models, with a purity test for core/
 - test: check every forbidden form of the core purity detector against synthetic snippets, and that the scan reaches `__init__.py` and subpackages
 - feat: full protocol model (registry, pipeline, nodes, resources, gates, direct/loop/router edges), x-* extension keys, V06 on every edge type, generated JSON Schema (schema/*.json) and self-validation of this repo's .lasagna/ and the built-in pipelines
+- feat: V07 (an absent entry included), V10 and V12 over core/graph.py, validate --json, a correction phrase at the end of every message, findings on stdout and usage errors on stderr, stdout always UTF-8
