@@ -65,15 +65,15 @@ hanno ticket.
 | AC-V3-001 | 01 | check | clean copy (tracked+new files, no `.venv/`), 2026-11-09: `uv sync` ok, `uv run pytest` green, `uv run lasagna --version` exit 0; `pyproject.toml` has `[project.scripts] lasagna` and `requires-python >=3.11` |
 | AC-V3-002 | 01 | test | `tests/e2e/test_version.py` (exact output, mutant without protocol killed) |
 | AC-V3-003 | 01 | test | `tests/e2e/test_validate.py` (exit 0; exit 1 with V06, file, `edges[0].to`), `tests/core/test_validate_v06.py` |
-| AC-V3-005 | 02 | test | |
-| AC-V3-006 | 02 | test | |
+| AC-V3-005 | 02 | test | `tests/core/test_models_*.py`, `tests/core/test_validate_v06_edge_types.py`, `tests/shell/test_self_validation.py` (`.lasagna/` and `builtin/`), `tests/shell/test_spec_blocks.py` (blocks of §4.3–4.8, §10, §11.1 extracted from the spec); mutations M04–M09, M12, M15, M16 |
+| AC-V3-006 | 02 | test | `tests/core/test_extension_keys.py` (14 fixed-key objects, 4 user-key maps, near-miss and non-string keys); mutations M01, M02, M13 |
 | AC-V3-007 | 06 | test | |
 | AC-V3-008 | 06 | test | |
 | AC-V3-009 | 03 | test | |
 | AC-V3-010 | 03 | test | |
 | AC-V3-011 | 03 | test | |
 | AC-V3-013 | 03 | test | |
-| AC-V3-014 | 02 | test | |
+| AC-V3-014 | 02 | test | `tests/core/test_schema.py`, `tests/e2e/test_gen_schema.py` (committed `schema/*.json` compared byte by byte with `render_schema`); mutations M03, M10, M11, M14; check: schema hash unchanged after regeneration |
 | AC-V3-015 | 04 | test | |
 | AC-V3-016 | 04 | test | |
 | AC-V3-017 | 04 | test | |
