@@ -1,11 +1,13 @@
 """Reads a lasagna project from the file system."""
 
+import posixpath
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from ruamel.yaml import YAML, YAMLError
 
-from lasagna.core.models import Finding
+from lasagna.core.models import Finding, Pipeline, Registry
 from lasagna.core.validate import REGISTRY_FILE, pipeline_file
 
 
@@ -84,3 +86,25 @@ def load_project(root: Path) -> ProjectData:
         except YAMLError as error:
             findings.append(_syntax_finding(pipeline_file(path), error))
     return ProjectData(root, True, registry, pipelines, tuple(findings))
+
+
+def pipeline_for_show(data: ProjectData, pipeline_id: str) -> tuple[Pipeline, dict[str, str], str]:
+    """Return the pipeline model, the registry param overrides and the pipeline folder."""
+    registry = Registry.model_validate(data.registry)
+    entry = next(e for e in registry.pipelines if e.id == pipeline_id)
+    pipeline = Pipeline.model_validate(data.pipelines[entry.path])
+    return pipeline, dict(entry.params), posixpath.normpath(".lasagna/" + entry.path)
+
+
+def containment_check(root: Path, pipeline_dir: str) -> Callable[[str], bool]:
+    """Return a function telling whether a path stays inside the pipeline folder."""
+
+    def is_contained(path: str) -> bool:
+        try:
+            base = (root / pipeline_dir).resolve()
+            target = (root / path).resolve()
+        except (OSError, RuntimeError):
+            return False
+        return target == base or base in target.parents
+
+    return is_contained
