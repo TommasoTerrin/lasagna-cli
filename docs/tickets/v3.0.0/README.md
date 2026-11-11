@@ -74,11 +74,11 @@ hanno ticket.
 | AC-V3-011 | 03 | test | `tests/core/test_validate_v12.py` (explicit and default `when: fail`, exact and case-sensitive, any gate type incl. `at: entry`, per edge, unknown `from`); mutations M07-M13, M34 |
 | AC-V3-013 | 03 | test | `tests/core/test_render_json.py` (exact text), `tests/e2e/test_validate_json.py` (valid project, V06, loading findings, exit 2 on stderr, V07/V10/V12), `tests/e2e/test_validate_utf8.py` (real subprocess, piped stdout); mutations M26-M30, M33 |
 | AC-V3-014 | 02 | test | `tests/core/test_schema.py`, `tests/e2e/test_gen_schema.py` (committed `schema/*.json` compared byte by byte with `render_schema`); mutations M03, M10, M11, M14; check: schema hash unchanged after regeneration |
-| AC-V3-015 | 04 | test | |
-| AC-V3-016 | 04 | test | |
-| AC-V3-017 | 04 | test | |
-| AC-V3-018 | 04 | test | |
-| AC-V3-019 | 04 | test | |
+| AC-V3-015 | 04 | test | `tests/core/test_render_text.py` (grammar, literal single pass, `$` kept, unknown names kept), `tests/core/test_show_json.py`, `tests/core/test_show_text.py` (text fields substituted, non-text fields literal, `run` params only); mutations M01-M11, M29-M32, M36 |
+| AC-V3-016 | 04 | test | `tests/core/test_resolve_params.py` (registry wins over default, origin, declaration order, undeclared override ignored), `tests/e2e/test_show.py` (params of the registry through the CLI); mutations M19-M23, M59, M60 |
+| AC-V3-017 | 04 | test | `tests/core/test_pipeline_ref.py` (normalization, exit from the folder, prefix), `tests/shell/test_containment.py` (junction, sibling prefix, linked folder), `tests/core/test_show_json.py` (substitution before resolution, predicate only for the node's `$pipeline/` refs), `tests/e2e/test_show.py` (exit 1 with format F, unnormalized registry path); mutations M12-M18, M33-M38, M48-M51, M61; C03-C05 |
+| AC-V3-018 | 04 | test | `tests/core/test_show_text.py`, `tests/core/test_show_json.py` (exact goldens for the overview and the node view), `tests/e2e/test_show.py` (other entries unreadable, `enabled: false`, validate rules, errors on stderr), `tests/e2e/test_show_utf8.py` (real subprocess, piped stdout); mutations M41-M47, M54-M58 |
+| AC-V3-019 | 04 | test | `tests/core/test_parse_inputs.py` (first `=`, last value wins, undeclared, empty key), `tests/e2e/test_show.py` (exit 2 on stderr, inputs reach the view), `tests/core/test_show_json.py` (outgoing edges and next nodes); mutations M24-M28, M39, M40, M52, M53, M62 |
 | AC-V3-020 | 05 | test | |
 | AC-V3-021 | 05 | test | |
 | AC-V3-022 | 01 | test | `tests/core/test_purity.py` (AST scan, recursive); mutation review: `import os` and `open()` in `core/` fail it |
