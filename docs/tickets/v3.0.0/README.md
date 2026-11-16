@@ -79,8 +79,8 @@ hanno ticket.
 | AC-V3-017 | 04 | test | `tests/core/test_pipeline_ref.py` (normalization, exit from the folder, prefix), `tests/shell/test_containment.py` (junction, sibling prefix, linked folder), `tests/core/test_show_json.py` (substitution before resolution, predicate only for the node's `$pipeline/` refs), `tests/e2e/test_show.py` (exit 1 with format F, unnormalized registry path); mutations M12-M18, M33-M38, M48-M51, M61; C03-C05 |
 | AC-V3-018 | 04 | test | `tests/core/test_show_text.py`, `tests/core/test_show_json.py` (exact goldens for the overview and the node view), `tests/e2e/test_show.py` (other entries unreadable, `enabled: false`, validate rules, errors on stderr), `tests/e2e/test_show_utf8.py` (real subprocess, piped stdout); mutations M41-M47, M54-M58 |
 | AC-V3-019 | 04 | test | `tests/core/test_parse_inputs.py` (first `=`, last value wins, undeclared, empty key), `tests/e2e/test_show.py` (exit 2 on stderr, inputs reach the view), `tests/core/test_show_json.py` (outgoing edges and next nodes); mutations M24-M28, M39, M40, M52, M53, M62 |
-| AC-V3-020 | 05 | test | |
-| AC-V3-021 | 05 | test | |
+| AC-V3-020 | 05 | test | `tests/core/test_list_text.py`, `tests/core/test_list_json.py`, `tests/core/test_list_item.py` (exact formats, params, description), `tests/shell/test_builtin.py`, `tests/e2e/test_list.py` (`--all`, `--builtin`, unreadable entries exit 1, duplicate ids), `tests/e2e/test_list_utf8.py`, `tests/e2e/test_broken_registry.py`; mutations M01-M22 |
+| AC-V3-021 | 05 | test | `tests/core/test_mermaid.py` and the hand-written snapshot `tests/snapshots/graph_demo.mmd`, `tests/e2e/test_graph_command.py` (unknown id exit 2, unreadable exit 1, `--output` UTF-8 + LF), `tests/e2e/test_graph_utf8.py`; mutations M23-M40 |
 | AC-V3-022 | 01 | test | `tests/core/test_purity.py` (AST scan, recursive); mutation review: `import os` and `open()` in `core/` fail it |
 | AC-V3-023 | 07 | test | |
 | AC-V3-024 | 10 | test | |
