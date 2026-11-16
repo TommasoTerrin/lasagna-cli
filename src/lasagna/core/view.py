@@ -1,7 +1,8 @@
 """The views of `lasagna show` (pure)."""
 
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from lasagna.core.models import DirectEdge, LoopEdge, Pipeline, RouterEdge
@@ -11,6 +12,57 @@ from lasagna.core.render import (
     resolve_params,
     resolve_pipeline_ref,
 )
+
+
+@dataclass(frozen=True)
+class ListItem:
+    id: str
+    version: str | None
+    description: str | None
+    started_by: str | None
+    enabled: bool | None
+
+
+def list_item(pipeline: Pipeline, overrides: Mapping[str, str], enabled: bool | None) -> ListItem:
+    """Summarize a pipeline as one entry of `lasagna list`."""
+    resolved = resolve_params(pipeline, overrides)
+    params = {name: param.value for name, param in resolved.items()}
+    description = None
+    if pipeline.description is not None:
+        description = " ".join(render_text(pipeline.description, params, {}).split())
+    started_by = next((n.started_by for n in pipeline.nodes if n.id == pipeline.entry), None)
+    return ListItem(pipeline.id, pipeline.version, description, started_by, enabled)
+
+
+def list_text(items: Sequence[ListItem], builtin: bool) -> str:
+    """Render the items as the text of `lasagna list`."""
+    lines = ["# Built-in pipelines" if builtin else "# Pipelines", ""]
+    for item in items:
+        line = f"- {item.id} {item.version or '-'} started_by={item.started_by or '-'}"
+        if item.enabled is False:
+            line += " (disabled)"
+        if item.description is not None:
+            line += f": {item.description}"
+        lines.append(line)
+    if not items:
+        lines.append("(none)")
+    return "\n".join(lines) + "\n"
+
+
+def list_json(items: Sequence[ListItem]) -> str:
+    """Render the items as the JSON document of `lasagna list --json`."""
+    pipelines = []
+    for item in items:
+        entry: dict[str, Any] = {
+            "id": item.id,
+            "version": item.version,
+            "description": item.description,
+            "started_by": item.started_by,
+        }
+        if item.enabled is not None:
+            entry["enabled"] = item.enabled
+        pipelines.append(entry)
+    return json.dumps({"pipelines": pipelines}, indent=2, ensure_ascii=False) + "\n"
 
 
 def _render_edge(edge: DirectEdge | LoopEdge | RouterEdge, params: Mapping[str, str], inputs: Mapping[str, str]) -> dict[str, Any]:
