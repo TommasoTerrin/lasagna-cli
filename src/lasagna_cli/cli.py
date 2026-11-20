@@ -16,6 +16,7 @@ from lasagna_cli.gitops import (
     has_identity,
     head_commit,
     lasagna_changes,
+    remove_worktree,
 )
 from lasagna_cli.ids import check_custom_id, next_run_id, project_lock
 from lasagna_cli.loader import load_project
@@ -31,7 +32,7 @@ from lasagna_cli.refs import (
 from lasagna_cli.runs import run_lock_path, run_log_path
 from lasagna_cli.runtree import load_root_summaries, load_run_tree
 from lasagna_cli.scaffold import init_project
-from lasagna_cli.session import RunBusyError, Session, open_session
+from lasagna_cli.session import RunBusyError, Session, open_session, open_writer
 from lasagna_cli.state import derive_state
 from lasagna_cli.status import (
     render_json,
@@ -512,6 +513,75 @@ def phase_fail(
         return engine.manual_fail(phase.id, reason)
 
     _manual_command(args, action)
+
+
+@app.command()
+def cancel(
+    run: Annotated[
+        str | None,
+        typer.Argument(help="Run id. Omit it when only one run is active."),
+    ] = None,
+) -> None:
+    """Cancel a waiting or interrupted run."""
+    root = require_project_root()
+    try:
+        run_id = resolve_run(
+            root,
+            run,
+            lambda t: t.status in ("waiting", "running"),
+            "waiting or running",
+        )
+        with open_writer(root, run_id) as writer:
+            status = derive_state(read_events(writer.path)).status
+            if status not in ("waiting", "running"):
+                raise _fail(
+                    f"run '{run_id}' is {status}; only an active run can be cancelled"
+                )
+            writer.append("run_completed", status="cancelled", outputs={})
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except CorruptLogError as error:
+        raise _fail(str(error)) from None
+    typer.echo(f"Run {run_id}: cancelled")
+
+
+@app.command()
+def clean(
+    run: Annotated[
+        str | None,
+        typer.Argument(help="Run id. Omit it when only one run can be cleaned."),
+    ] = None,
+) -> None:
+    """Remove the worktree of a finished run; branch and log stay."""
+    root = require_project_root()
+
+    def cleanable(tree) -> bool:
+        concluded = tree.status in ("done", "failed", "cancelled")
+        return concluded and (root / tree.state.worktree).exists()
+
+    try:
+        run_id = resolve_run(root, run, cleanable, "ready to clean")
+        with open_writer(root, run_id) as writer:
+            state = derive_state(read_events(writer.path))
+            if state.status not in ("done", "failed", "cancelled"):
+                raise _fail(
+                    f"run '{run_id}' is {state.status}; "
+                    "only a finished run can be cleaned"
+                )
+            path = root / state.worktree
+            if not path.exists():
+                typer.echo(f"Worktree of {run_id} is already removed")
+                return
+            remove_worktree(root, path)
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except (CorruptLogError, GitError) as error:
+        raise _fail(str(error)) from None
+    typer.echo(f"Removed worktree of {run_id}")
 
 
 def main() -> None:

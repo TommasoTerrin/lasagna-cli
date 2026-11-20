@@ -27,8 +27,8 @@ class Session:
 
 
 @contextmanager
-def open_session(root: Path, run_id: str) -> Iterator[Session]:
-    """Take the run lock, read the definition from the recorded commit.
+def open_writer(root: Path, run_id: str) -> Iterator[EventWriter]:
+    """Take the run lock and yield a writer for its log.
 
     Raises `RunBusyError` when the lock is held elsewhere.
     """
@@ -38,10 +38,17 @@ def open_session(root: Path, run_id: str) -> Iterator[Session]:
     except LockBusyError:
         raise RunBusyError(run_id) from None
     try:
-        log = run_log_path(root, run_id)
-        first = read_events(log)[0]
+        yield EventWriter(run_log_path(root, run_id), run_id, lock)
+    finally:
+        lock.release()
+
+
+@contextmanager
+def open_session(root: Path, run_id: str) -> Iterator[Session]:
+    """Open a run to advance it: lock, writer, definition from the recorded commit."""
+    with open_writer(root, run_id) as writer:
+        first = read_events(writer.path)[0]
         with snapshot_project(root, first["definition"]) as snapshot:
-            writer = EventWriter(log, run_id, lock)
             ctx = RunContext(
                 root=root,
                 run_id=run_id,
@@ -52,5 +59,3 @@ def open_session(root: Path, run_id: str) -> Iterator[Session]:
                 base_commit=first["base_commit"],
             )
             yield Session(ctx, writer)
-    finally:
-        lock.release()

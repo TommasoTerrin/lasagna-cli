@@ -1,6 +1,7 @@
 """Resolve the `[RUN] [PHASE]` arguments of the commands (PROTOCOL section 11)."""
 
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 from lasagna_cli.runs import run_log_path
@@ -17,22 +18,29 @@ def _run_exists(root: Path, run_id: str) -> bool:
     return bool(RUN_ID_PATTERN.match(run_id)) and run_log_path(root, run_id).is_file()
 
 
-def resolve_run(root: Path, given: str | None) -> str:
-    """The run id; with `None`, the only run that is waiting."""
+def is_waiting(tree: RunTree) -> bool:
+    return tree.status == "waiting"
+
+
+def resolve_run(
+    root: Path,
+    given: str | None,
+    accept: Callable[[RunTree], bool] = is_waiting,
+    what: str = "waiting",
+) -> str:
+    """The run id; with `None`, the only root run that `accept` approves."""
     if given is not None:
         if not _run_exists(root, given):
             raise RefError(f"unknown run '{given}'")
         return given
-    waiting = [
-        t.state.run_id for t in load_root_summaries(root) if t.status == "waiting"
-    ]
-    if not waiting:
-        raise RefError("no run is waiting")
-    if len(waiting) > 1:
+    found = [t.state.run_id for t in load_root_summaries(root) if accept(t)]
+    if not found:
+        raise RefError(f"no run is {what}")
+    if len(found) > 1:
         raise RefError(
-            "several runs are waiting: " + ", ".join(waiting) + "; pass the run id"
+            f"several runs are {what}: " + ", ".join(found) + "; pass the run id"
         )
-    return waiting[0]
+    return found[0]
 
 
 def waiting_phases(tree: RunTree) -> list[str]:
