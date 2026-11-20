@@ -1,6 +1,8 @@
 """Command-line interface of Lasagna."""
 
+import functools
 import re
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
@@ -84,6 +86,24 @@ def root(
     ] = False,
 ) -> None:
     """Orchestrate pipelines whose phases are run by humans, machines or agents."""
+
+
+def interruptible(func: Callable) -> Callable:
+    """Exit 130 on Ctrl+C outside the engine too (git calls, locks, worktrees).
+
+    The engine closes the run itself; here only the message and the exit code,
+    the locks being released by the `with` blocks the interrupt passes through.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except KeyboardInterrupt:
+            typer.echo("interrupted", err=True)
+            raise typer.Exit(EXIT_INTERRUPTED) from None
+
+    return wrapper
 
 
 def _fail(message: str) -> typer.Exit:
@@ -194,6 +214,7 @@ def _parse_inputs(pipeline, given: list[str]) -> dict[str, str]:
 
 
 @app.command()
+@interruptible
 def start(
     pipeline: Annotated[str, typer.Argument(help="Name of the pipeline to run.")],
     run_id: Annotated[
@@ -359,6 +380,7 @@ def _report(ctx: RunContext, code: int) -> None:
 
 
 @app.command()
+@interruptible
 def decide(
     args: Annotated[
         list[str],
@@ -420,6 +442,7 @@ RunPhaseArgs = Annotated[
 ]
 
 
+@interruptible
 def _manual_command(args: list[str] | None, action) -> None:
     """Open the run of a phase command, find the open manual phase, act on it."""
     root = require_project_root()

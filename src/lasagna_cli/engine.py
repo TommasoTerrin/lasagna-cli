@@ -62,12 +62,25 @@ class Engine:
         self.writer = writer
         self.runner = runner
         self.platform = platform
+        self._current: str | None = None
 
     # -- main loop ---------------------------------------------------------
 
     def drive(self) -> int:
-        """Advance the run; the return value is the exit code of the command."""
+        """Advance the run; the return value is the exit code of the command.
+
+        A Ctrl+C anywhere in here closes the phase in progress with
+        `phase_failed` (`interrupted`) and the run with `run_completed`
+        (`failed`), and the exit code is 130.
+        """
+        try:
+            return self._drive()
+        except (Interrupted, KeyboardInterrupt):
+            return self._close_interrupted()
+
+    def _drive(self) -> int:
         while True:
+            self._current = None
             state = self._state()
             step = next_step(self.ctx.pipeline, state)
             if isinstance(step, Finish):
@@ -75,17 +88,15 @@ class Engine:
                 return EXIT_OK
             phase_id = step.phase_id
             full = self._full(phase_id)
+            self._current = full
             if isinstance(step, Prune):
                 self.writer.append("phase_skipped", phase=full, reason="pruned")
                 continue
-            try:
-                if isinstance(step, DecideRoute):
-                    code = self._route(phase_id, state)
-                else:
-                    assert isinstance(step, Execute)
-                    code = self._execute(phase_id, state)
-            except Interrupted:
-                return self._interrupted(full)
+            if isinstance(step, DecideRoute):
+                code = self._route(phase_id, state)
+            else:
+                assert isinstance(step, Execute)
+                code = self._execute(phase_id, state)
             if code is not None:
                 return code
 
@@ -132,10 +143,29 @@ class Engine:
         self.writer.append("run_completed", status="failed")
         return EXIT_FAILED
 
-    def _interrupted(self, full: str) -> int:
-        self.writer.append("phase_failed", phase=full, reason="interrupted")
+    def _close_interrupted(self) -> int:
+        """Write the events of an interruption; the log stays valid.
+
+        The interrupt may have hit inside a write, so the writer resyncs first;
+        if the run was already closed, nothing is added.
+        """
+        full = self._current
+        self.writer.resync()
+        state = self._state()
+        if state.status in ("done", "failed", "cancelled"):
+            return EXIT_INTERRUPTED
+        current = next((p for p in state.phases if p.phase == full), None)
+        if full is not None and not (current and current.state == "failed"):
+            self.writer.append("phase_failed", phase=full, reason="interrupted")
         self.writer.append("run_completed", status="failed")
         return EXIT_INTERRUPTED
+
+    def _guarded(self, phase_id: str, action: Callable[[], int | None]) -> int | None:
+        self._current = self._full(phase_id)
+        try:
+            return action()
+        except (Interrupted, KeyboardInterrupt):
+            return self._close_interrupted()
 
     def _decider_kind(self, phase_id: str, decider: Decider) -> str:
         """ "human" or "machine"; agent deciders are refused at `start`."""
@@ -355,16 +385,16 @@ class Engine:
         Returns an exit code when the run stops, or None when the phase is
         completed and the caller should `drive()` on.
         """
+        return self._guarded(phase_id, lambda: self._manual_run(phase_id))
+
+    def _manual_run(self, phase_id: str) -> int | None:
         phase, state, current = self._manual(phase_id)
         command = phase.with_.get("command")
         if command is None:
             raise EngineError(f"phase '{phase_id}' has no command")
         output = new_output_file(self.ctx.worktree, self.ctx.run_id)
         env = self._env(phase_id, output, current.inputs)
-        try:
-            code = self._run_command(command, env, inherit_stdin=True)
-        except Interrupted:
-            return self._interrupted(self._full(phase_id))
+        code = self._run_command(command, env, inherit_stdin=True)
         if code != 0:
             return self._fail(phase_id, "exit_code", exit_code=code)
         return self._complete(
@@ -378,6 +408,9 @@ class Engine:
 
     def manual_done(self, phase_id: str, written: Mapping[str, str]) -> int | None:
         """The human declares the phase done; same verification and commit."""
+        return self._guarded(phase_id, lambda: self._manual_done(phase_id, written))
+
+    def _manual_done(self, phase_id: str, written: Mapping[str, str]) -> int | None:
         phase, state, current = self._manual(phase_id)
         return self._complete(
             phase,
