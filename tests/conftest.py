@@ -59,3 +59,19 @@ def write_pipeline(
 def _touch(path: Path, text: str = "# placeholder\n") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def base_pipeline(name: str = "p") -> dict:
+    """A valid two-phase pipeline: machine `a` then machine `b`."""
+    return {
+        "name": name,
+        "phases": [
+            {"id": "a", "actor": "machine", "with": {"command": "true"}},
+            {
+                "id": "b",
+                "needs": ["a"],
+                "actor": "machine",
+                "with": {"command": "true"},
+            },
+        ],
+    }
