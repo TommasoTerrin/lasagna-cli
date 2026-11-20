@@ -154,18 +154,19 @@ def test_rule_reports_issue(project, case):
 def test_existing_harness_files_are_accepted(project):
     data = base_pipeline()
     data["harness"] = {"skills": ["s1"], "mcp": ["m1"]}
-    data["phases"][0]["harness"] = {"main_skill": True, "skills": ["s2"], "mcp": ["m2"]}
+    data["phases"][0] = {
+        "id": "a",
+        "actor": "claude",
+        "with": {"prompt": "hi"},
+        "harness": {"main_skill": True, "skills": ["s2"], "mcp": ["m2"]},
+    }
     write_pipeline(
         project, data, main_skill=["a"], skills=["s1", "s2"], mcp=["m1", "m2"]
     )
-    assert not [
-        i
-        for i in issues_of(project)
-        if i.field.startswith(("harness", "phases[0].harness"))
-    ]
+    assert issues_of(project) == []
 
 
-def sub(name, child, *, extra=None):
+def sub(name, child):
     data = {
         "name": name,
         "phases": [{"id": "x", "pipeline": child}] if child else [machine("x")],
