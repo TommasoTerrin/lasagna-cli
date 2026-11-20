@@ -369,8 +369,10 @@ def _report(ctx: RunContext, code: int) -> None:
         for item in state.phases:
             if item.state == "running" and item.mode == "manual":
                 phase = item.phase.removeprefix(f"{ctx.pipeline.name}/")
+                has_command = "command" in ctx.pipeline.phase(phase).with_
+                verbs = "run|done|fail" if has_command else "done|fail"
                 typer.echo(
-                    f"  {item.phase} (manual): lasagna phase done {run_id} {phase}"
+                    f"  {item.phase} (manual): lasagna phase {verbs} {run_id} {phase}"
                 )
     else:
         outcome = {EXIT_OK: "done", EXIT_FAILED: "failed"}

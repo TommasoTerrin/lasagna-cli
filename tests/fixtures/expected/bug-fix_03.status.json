@@ -16,7 +16,9 @@
   },
   "waiting": [],
   "interrupted": [],
-  "warnings": [],
+  "warnings": [
+    "cannot read definition a1b2c3d; pending phases are not shown"
+  ],
   "phases": [
     {
       "phase": "bug-fix/fetch-issue",
@@ -123,7 +125,9 @@
       },
       "waiting": [],
       "interrupted": [],
-      "warnings": [],
+      "warnings": [
+        "cannot read definition a1b2c3d; pending phases are not shown"
+      ],
       "phases": [
         {
           "phase": "bug-fix/tdd/red",

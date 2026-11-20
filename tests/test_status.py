@@ -23,11 +23,13 @@ bug-fix_03 (bug-fix): done
   pruned   bug-fix/quick-fix
   done     bug-fix/tdd
   done     bug-fix/review
+  warning: cannot read definition a1b2c3d; pending phases are not shown
   bug-fix_03.tdd.1 (tdd): done
     by bug-fix_03, started 2026-11-20T09:34:31Z, finished 2026-11-20T09:58:11Z
     done     bug-fix/tdd/red
     done     bug-fix/tdd/verify-red
     done     bug-fix/tdd/green #2
+    warning: cannot read definition a1b2c3d; pending phases are not shown
 """
 
 
