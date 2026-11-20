@@ -75,9 +75,8 @@ def test_json_shows_pending_rows_with_null_values(stopped: Path, monkeypatch) ->
     pending = phases["p/c"]
     assert pending["state"] == "pending"
     for key, value in pending.items():
-        if key not in ("phase", "state", "outputs"):
+        if key not in ("phase", "state"):
             assert value is None, key
-    assert pending["outputs"] == {}
     assert data["warnings"] == []
 
 
