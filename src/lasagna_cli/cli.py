@@ -26,6 +26,7 @@ from lasagna_cli.refs import (
     parse_decide_args,
     resolve_phase,
     resolve_run,
+    split_run_phase,
 )
 from lasagna_cli.runs import run_lock_path, run_log_path
 from lasagna_cli.runtree import load_root_summaries, load_run_tree
@@ -54,6 +55,13 @@ app = typer.Typer(
     add_completion=False,
     help="Orchestrate pipelines whose phases are run by humans, machines or agents.",
 )
+
+
+phase_app = typer.Typer(
+    no_args_is_help=True,
+    help="Run, complete or fail the open manual (human) phase of a run.",
+)
+app.add_typer(phase_app, name="phase")
 
 
 def _print_version(value: bool) -> None:
@@ -400,6 +408,110 @@ def _decide(root: Path, session: Session, phase_arg: str | None, value: str) -> 
         "decision", phase=full, kind=wait.for_, by=wait.by, value=value
     )
     _report(ctx, Engine(ctx, session.writer).drive())
+
+
+RunPhaseArgs = Annotated[
+    list[str] | None,
+    typer.Argument(
+        help="[RUN] [PHASE]: both can be omitted when only one is waiting. "
+        "The phase is its id or its full name."
+    ),
+]
+
+
+def _manual_command(args: list[str] | None, action) -> None:
+    """Open the run of a phase command, find the open manual phase, act on it."""
+    root = require_project_root()
+    try:
+        run_arg, phase_arg = split_run_phase(root, args or [])
+        run_id = resolve_run(root, run_arg)
+        with open_session(root, run_id) as session:
+            ctx = session.ctx
+            state = session.state()
+            if state.status in ("done", "failed", "cancelled"):
+                raise _fail(f"run '{run_id}' is {state.status}; nothing to do")
+            phase_id = _open_manual_phase(ctx, state, phase_arg)
+            engine = Engine(ctx, session.writer)
+            code = action(engine, ctx.pipeline.phase(phase_id))
+            if code is None:
+                code = engine.drive()
+            _report(ctx, code)
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except CorruptLogError as error:
+        raise _fail(str(error)) from None
+
+
+def _open_manual_phase(ctx: RunContext, state, given: str | None) -> str:
+    prefix = f"{ctx.pipeline.name}/"
+    open_names = [
+        p.phase for p in state.phases if p.state == "running" and p.mode == "manual"
+    ]
+    if not open_names:
+        raise _fail(f"no manual phase is running in run '{ctx.run_id}'")
+    if given is None:
+        return open_names[0].removeprefix(prefix)
+    full = given if "/" in given else f"{prefix}{given}"
+    if full not in open_names:
+        raise _fail(
+            f"phase '{given}' is not the running manual phase "
+            f"(running: {', '.join(open_names)})"
+        )
+    return full.removeprefix(prefix)
+
+
+@phase_app.command("run")
+def phase_run(args: RunPhaseArgs = None) -> None:
+    """Run the command of the open manual phase in the terminal."""
+
+    def action(engine: Engine, phase) -> int | None:
+        if "command" not in phase.with_:
+            raise _fail("this phase has no command; use lasagna phase done")
+        return engine.manual_run(phase.id)
+
+    _manual_command(args, action)
+
+
+@phase_app.command("done")
+def phase_done(
+    args: RunPhaseArgs = None,
+    output: Annotated[
+        list[str] | None,
+        typer.Option("--output", help="Value output as name=value. Repeatable."),
+    ] = None,
+) -> None:
+    """Declare the open manual phase done; its changes are committed."""
+
+    def action(engine: Engine, phase) -> int | None:
+        written: dict[str, str] = {}
+        for item in output or []:
+            name, separator, value = item.partition("=")
+            if not separator or not name:
+                raise _fail(f"invalid --output '{item}': expected name=value")
+            declared = phase.outputs.get(name)
+            if declared is None or declared.type != "value":
+                raise _fail(f"'{name}' is not a declared value output of this phase")
+            written[name] = value
+        return engine.manual_done(phase.id, written)
+
+    _manual_command(args, action)
+
+
+@phase_app.command("fail")
+def phase_fail(
+    args: RunPhaseArgs = None,
+    reason: Annotated[
+        str | None, typer.Option("--reason", help="Why the phase failed.")
+    ] = None,
+) -> None:
+    """Declare the open manual phase failed; the run fails with it."""
+
+    def action(engine: Engine, phase) -> int | None:
+        return engine.manual_fail(phase.id, reason)
+
+    _manual_command(args, action)
 
 
 def main() -> None:

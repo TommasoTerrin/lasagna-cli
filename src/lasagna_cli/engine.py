@@ -10,9 +10,10 @@ import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
-from lasagna_cli.eventlog import EventWriter, read_events
+from lasagna_cli.eventlog import EventWriter, read_events, utc_now
 from lasagna_cli.flow import DecideRoute, Execute, Finish, Prune, next_step
 from lasagna_cli.gitops import commit_all, local_git_env_vars
 from lasagna_cli.model import Decider, Phase, Pipeline, Project
@@ -177,11 +178,14 @@ class Engine:
             drop=local_git_env_vars(),
         )
 
-    def _run_command(self, command: str, env: Mapping[str, str]) -> int:
+    def _run_command(
+        self, command: str, env: Mapping[str, str], *, inherit_stdin: bool = False
+    ) -> int:
         return self.runner(
             command,
             cwd=self.ctx.worktree,
             env=env,
+            inherit_stdin=inherit_stdin,
             bash_setting=self.ctx.project.config.shell,
         )
 
@@ -286,27 +290,108 @@ class Engine:
         if code != 0:
             return self._fail(phase_id, "exit_code", exit_code=code)
 
+        return self._complete(
+            phase,
+            state,
+            inputs,
+            parse_output_file(output),
+            int((time.monotonic() - started) * 1000),
+            exit_code=0,
+        )
+
+    def _complete(
+        self,
+        phase: Phase,
+        state: RunState,
+        inputs: dict[str, str],
+        written: Mapping[str, str],
+        duration_ms: int,
+        exit_code: int | None,
+    ) -> int | None:
+        """Verify the declared outputs, commit, record `phase_completed`."""
+        ctx = self.ctx
+        full = self._full(phase.id)
+
         def resolve_path(template: str, values: dict[str, str]) -> str:
             return resolve_text(
                 template, self._scope(state, inputs=inputs, outputs=values)
             )
 
-        result = collect_outputs(
-            phase.outputs, parse_output_file(output), ctx.worktree, resolve_path
-        )
+        result = collect_outputs(phase.outputs, written, ctx.worktree, resolve_path)
         if result.missing:
-            return self._fail(phase_id, "missing_output", "; ".join(result.errors))
-
+            return self._fail(phase.id, "missing_output", "; ".join(result.errors))
         sha = commit_all(ctx.worktree, f"lasagna({ctx.run_id}): {full}")
-        self.writer.append(
-            "phase_completed",
-            phase=full,
-            exit_code=0,
-            outputs=result.outputs,
-            commit=sha,
-            duration_ms=int((time.monotonic() - started) * 1000),
-        )
+        fields: dict[str, object] = {
+            "outputs": result.outputs,
+            "commit": sha,
+            "duration_ms": duration_ms,
+        }
+        if exit_code is not None:
+            fields["exit_code"] = exit_code
+        self.writer.append("phase_completed", phase=full, **fields)
         return None
+
+    # -- manual phases (`phase run`, `phase done`, `phase fail`) -----------
+
+    def _manual(self, phase_id: str) -> tuple[Phase, RunState, PhaseState]:
+        state = self._state()
+        current = self._phase_state(state, phase_id)
+        if current is None or current.state != "running" or current.mode != "manual":
+            raise EngineError(f"phase '{phase_id}' is not a running manual phase")
+        return self.ctx.pipeline.phase(phase_id), state, current
+
+    def _since_started(self, full: str) -> int:
+        started = [
+            e
+            for e in read_events(self.writer.path)
+            if e["event"] == "phase_started" and e["phase"] == full
+        ]
+        begin = datetime.fromisoformat(started[-1]["ts"].replace("Z", "+00:00"))
+        return max(0, int((utc_now() - begin).total_seconds() * 1000))
+
+    def manual_run(self, phase_id: str) -> int | None:
+        """Run the command of the open manual phase in the foreground.
+
+        Returns an exit code when the run stops, or None when the phase is
+        completed and the caller should `drive()` on.
+        """
+        phase, state, current = self._manual(phase_id)
+        command = phase.with_.get("command")
+        if command is None:
+            raise EngineError(f"phase '{phase_id}' has no command")
+        output = new_output_file(self.ctx.worktree, self.ctx.run_id)
+        env = self._env(phase_id, output, current.inputs)
+        try:
+            code = self._run_command(command, env, inherit_stdin=True)
+        except Interrupted:
+            return self._interrupted(self._full(phase_id))
+        if code != 0:
+            return self._fail(phase_id, "exit_code", exit_code=code)
+        return self._complete(
+            phase,
+            state,
+            dict(current.inputs),
+            parse_output_file(output),
+            self._since_started(self._full(phase_id)),
+            exit_code=0,
+        )
+
+    def manual_done(self, phase_id: str, written: Mapping[str, str]) -> int | None:
+        """The human declares the phase done; same verification and commit."""
+        phase, state, current = self._manual(phase_id)
+        return self._complete(
+            phase,
+            state,
+            dict(current.inputs),
+            written,
+            self._since_started(self._full(phase_id)),
+            exit_code=None,
+        )
+
+    def manual_fail(self, phase_id: str, reason: str | None) -> int:
+        """The human declares the phase failed; the run fails with it."""
+        self._manual(phase_id)
+        return self._fail(phase_id, "manual", reason)
 
     def _open_manual(
         self, phase: Phase, full: str, inputs: dict[str, str], state: RunState
