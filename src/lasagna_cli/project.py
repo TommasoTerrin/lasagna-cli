@@ -4,6 +4,8 @@ import subprocess
 from importlib import resources
 from pathlib import Path
 
+from lasagna_cli.gitops import git_env
+
 
 class NotAGitRepoError(Exception):
     """Raised when a command runs outside a git repository."""
@@ -18,6 +20,7 @@ def find_repo_root(cwd: Path) -> Path:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env(),
         )
     except (subprocess.CalledProcessError, FileNotFoundError, NotADirectoryError):
         raise NotAGitRepoError("not inside a git repository") from None
