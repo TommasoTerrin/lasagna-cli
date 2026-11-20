@@ -85,8 +85,9 @@ def _check_decider(actor: Actor, label: str, decider: Decider, add) -> None:
     if actor.type == "machine":
         forbid("prompt", "a machine")
         forbid("instructions", "a machine")
-        if label == "route" and decider.check is None:
-            add("route.check", "required when a machine decides a route")
+        if label in ("route", "loop.until") and decider.check is None:
+            kind = "route" if label == "route" else "loop"
+            add(f"{label}.check", f"required when a machine decides a {kind}")
     elif actor.type == "agent":
         if decider.prompt is None:
             add(f"{label}.prompt", "required when an agent decides")

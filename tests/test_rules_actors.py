@@ -113,6 +113,13 @@ CASES = {
         "phases[0].route.check",
         "required when a machine decides a route",
     ),
+    "D1c": (
+        lambda d: d["phases"][1].update(
+            loop={"max_iterations": 2, "until": {"by": "machine"}}
+        ),
+        "phases[1].loop.until.check",
+        "required when a machine decides a loop",
+    ),
     "D2a": (
         lambda d: d["phases"][1].update(trigger={"by": "claude"}),
         "phases[1].trigger.prompt",
