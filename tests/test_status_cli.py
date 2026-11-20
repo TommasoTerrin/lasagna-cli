@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -120,4 +121,5 @@ def test_interrupted_run_shows_resume_hint(project, monkeypatch):
 
 def test_status_help_mentions_json():
     result = CliRunner().invoke(app, ["status", "--help"])
-    assert result.exit_code == 0 and "--json" in result.output
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)  # CI forces colours
+    assert result.exit_code == 0 and "--json" in plain
