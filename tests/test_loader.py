@@ -95,6 +95,15 @@ def test_unknown_actor_type(project):
     assert "x" not in p.actors
 
 
+def test_actor_without_type(project):
+    write(project, ".lasagna/actors/x.yaml", "name: x\n")
+    p = load_project(project)
+    assert p.issues == [
+        Issue(".lasagna/actors/x.yaml", "type", "missing required field 'type'")
+    ]
+    assert "x" not in p.actors
+
+
 def test_duplicate_actor_name(project):
     write(project, ".lasagna/actors/zeta.yaml", "type: human\nname: human\n")
     p = load_project(project)

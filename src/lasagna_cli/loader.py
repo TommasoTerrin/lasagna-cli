@@ -63,6 +63,10 @@ def _load_actors(base: Path, project: Project) -> None:
         if data is None:
             continue
         kind = data.get("type")
+        if "type" not in data:
+            message = "missing required field 'type'"
+            project.issues.append(Issue(label, "type", message))
+            continue
         if kind not in ACTOR_TYPES:
             shown = f"'{kind}'" if isinstance(kind, str) else repr(kind)
             message = (
