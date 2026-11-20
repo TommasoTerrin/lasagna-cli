@@ -9,7 +9,7 @@ import typer
 from lasagna_cli import __version__
 from lasagna_cli.definition import DefinitionError, snapshot_project
 from lasagna_cli.engine import Engine, RunContext
-from lasagna_cli.eventlog import CorruptLogError, EventWriter
+from lasagna_cli.eventlog import CorruptLogError, EventWriter, read_events
 from lasagna_cli.gitops import (
     GitError,
     add_worktree,
@@ -21,9 +21,17 @@ from lasagna_cli.ids import check_custom_id, next_run_id, project_lock
 from lasagna_cli.loader import load_project
 from lasagna_cli.locking import FileLock, LockBusyError
 from lasagna_cli.project import NotAGitRepoError, find_repo_root
+from lasagna_cli.refs import (
+    RefError,
+    parse_decide_args,
+    resolve_phase,
+    resolve_run,
+)
 from lasagna_cli.runs import run_lock_path, run_log_path
 from lasagna_cli.runtree import load_root_summaries, load_run_tree
 from lasagna_cli.scaffold import init_project
+from lasagna_cli.session import RunBusyError, Session, open_session
+from lasagna_cli.state import derive_state
 from lasagna_cli.status import (
     render_json,
     render_runs_json,
@@ -309,10 +317,89 @@ def _start_from_snapshot(
         code = Engine(context, writer).drive()
     finally:
         run_lock.release()
-    outcome = {EXIT_OK: "done", EXIT_FAILED: "failed", EXIT_INTERRUPTED: "interrupted"}
-    typer.echo(f"Run {chosen}: {outcome.get(code, 'stopped')}")
+    _report(context, code)
+
+
+def _report(ctx: RunContext, code: int) -> None:
+    """Say how the command ended and, for a wait, what the human can do."""
+    run_id = ctx.run_id
+    if code == EXIT_WAITING:
+        state = derive_state(read_events(run_log_path(ctx.root, run_id)))
+        typer.echo(f"Run {run_id}: waiting for a human")
+        for wait in state.waiting:
+            phase = wait.phase.removeprefix(f"{ctx.pipeline.name}/")
+            if wait.for_ == "trigger":
+                options = "start|skip"
+            else:
+                options = "|".join(ctx.pipeline.children(phase))
+            typer.echo(
+                f"  {wait.phase} ({wait.for_}, by {wait.by}): "
+                f"lasagna decide {run_id} {phase} {options}"
+            )
+        for item in state.phases:
+            if item.state == "running" and item.mode == "manual":
+                phase = item.phase.removeprefix(f"{ctx.pipeline.name}/")
+                typer.echo(
+                    f"  {item.phase} (manual): lasagna phase done {run_id} {phase}"
+                )
+    else:
+        outcome = {EXIT_OK: "done", EXIT_FAILED: "failed"}
+        typer.echo(f"Run {run_id}: {outcome.get(code, 'interrupted')}")
     if code != EXIT_OK:
         raise typer.Exit(code)
+
+
+@app.command()
+def decide(
+    args: Annotated[
+        list[str],
+        typer.Argument(
+            help="[RUN] [PHASE] VALUE: start or skip for a trigger, a child phase "
+            "for a route. RUN and PHASE can be omitted when only one is waiting."
+        ),
+    ],
+) -> None:
+    """Record a human decision and drive the run to the next wait or the end."""
+    root = require_project_root()
+    try:
+        run_arg, phase_arg, value = parse_decide_args(root, args)
+        run_id = resolve_run(root, run_arg)
+        with open_session(root, run_id) as session:
+            _decide(root, session, phase_arg, value)
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except CorruptLogError as error:
+        raise _fail(str(error)) from None
+
+
+def _decide(root: Path, session: Session, phase_arg: str | None, value: str) -> None:
+    ctx = session.ctx
+    state = session.state()
+    if state.status in ("done", "failed", "cancelled"):
+        raise _fail(f"run '{ctx.run_id}' is {state.status}; nothing to decide")
+    full = resolve_phase(load_run_tree(root, ctx.run_id), phase_arg)
+    phase_id = full.removeprefix(f"{ctx.pipeline.name}/")
+    waits = [w for w in state.waiting if w.phase == full]
+    if not waits:
+        raise _fail(f"phase '{phase_id}' is not waiting for a decision")
+    wait = waits[0]
+    if wait.for_ == "trigger":
+        valid = ["start", "skip"]
+    elif wait.for_ == "route":
+        valid = ctx.pipeline.children(phase_id)
+    else:
+        raise _fail("loop decisions are not supported yet")
+    if value not in valid:
+        raise _fail(
+            f"invalid value '{value}' for the {wait.for_} of '{phase_id}'; "
+            f"valid values: {', '.join(valid)}"
+        )
+    session.writer.append(
+        "decision", phase=full, kind=wait.for_, by=wait.by, value=value
+    )
+    _report(ctx, Engine(ctx, session.writer).drive())
 
 
 def main() -> None:
