@@ -1,0 +1,181 @@
+{
+  "id": "bug-fix_03",
+  "pipeline": "bug-fix",
+  "status": "done",
+  "by": "human",
+  "parent": null,
+  "started_at": "2026-11-20T09:00:00Z",
+  "completed_at": "2026-11-20T10:20:00Z",
+  "worktree": ".lasagna/worktrees/bug-fix_03",
+  "branch": "lasagna/bug-fix_03",
+  "inputs": {
+    "issue": "412"
+  },
+  "outputs": {
+    "report": "bugs/412/report.md"
+  },
+  "waiting": [],
+  "interrupted": [],
+  "warnings": [],
+  "phases": [
+    {
+      "phase": "bug-fix/fetch-issue",
+      "state": "done",
+      "iteration": 1,
+      "actor": "machine",
+      "pipeline": null,
+      "child_run": null,
+      "mode": "headless",
+      "outputs": {
+        "issue-file": "bugs/412/issue.json"
+      },
+      "commit": "b2c3d4e",
+      "exit_code": 0,
+      "duration_ms": 2140,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "phase": "bug-fix/triage",
+      "state": "done",
+      "iteration": 1,
+      "actor": "claude",
+      "pipeline": null,
+      "child_run": null,
+      "mode": "interactive",
+      "outputs": {
+        "report": "bugs/412/report.md",
+        "severity": "high"
+      },
+      "commit": "c3d4e5f",
+      "exit_code": 0,
+      "duration_ms": 1284000,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "phase": "bug-fix/quick-fix",
+      "state": "pruned",
+      "iteration": null,
+      "actor": null,
+      "pipeline": null,
+      "child_run": null,
+      "mode": null,
+      "outputs": {},
+      "commit": null,
+      "exit_code": null,
+      "duration_ms": null,
+      "reason": "pruned",
+      "detail": null
+    },
+    {
+      "phase": "bug-fix/tdd",
+      "state": "done",
+      "iteration": 1,
+      "actor": null,
+      "pipeline": "tdd",
+      "child_run": "bug-fix_03.tdd.1",
+      "mode": "pipeline",
+      "outputs": {
+        "test-file": "tests/bug-412.test.ts"
+      },
+      "commit": "f6a7b8c",
+      "exit_code": null,
+      "duration_ms": 1421000,
+      "reason": null,
+      "detail": null
+    },
+    {
+      "phase": "bug-fix/review",
+      "state": "done",
+      "iteration": 1,
+      "actor": "human",
+      "pipeline": null,
+      "child_run": null,
+      "mode": "manual",
+      "outputs": {},
+      "commit": null,
+      "exit_code": null,
+      "duration_ms": 1308000,
+      "reason": null,
+      "detail": null
+    }
+  ],
+  "children": [
+    {
+      "id": "bug-fix_03.tdd.1",
+      "pipeline": "tdd",
+      "status": "done",
+      "by": "bug-fix_03",
+      "parent": {
+        "run": "bug-fix_03",
+        "phase": "bug-fix/tdd"
+      },
+      "started_at": "2026-11-20T09:34:31Z",
+      "completed_at": "2026-11-20T09:58:11Z",
+      "worktree": ".lasagna/worktrees/bug-fix_03.tdd.1",
+      "branch": "lasagna/bug-fix_03.tdd.1",
+      "inputs": {
+        "report": "bugs/412/report.md"
+      },
+      "outputs": {
+        "test-file": "tests/bug-412.test.ts"
+      },
+      "waiting": [],
+      "interrupted": [],
+      "warnings": [],
+      "phases": [
+        {
+          "phase": "bug-fix/tdd/red",
+          "state": "done",
+          "iteration": 1,
+          "actor": "claude",
+          "pipeline": null,
+          "child_run": null,
+          "mode": "headless",
+          "outputs": {
+            "test-file": "tests/bug-412.test.ts"
+          },
+          "commit": "d4e5f6a",
+          "exit_code": 0,
+          "duration_ms": 278000,
+          "reason": null,
+          "detail": null
+        },
+        {
+          "phase": "bug-fix/tdd/verify-red",
+          "state": "done",
+          "iteration": 1,
+          "actor": "machine",
+          "pipeline": null,
+          "child_run": null,
+          "mode": "headless",
+          "outputs": {},
+          "commit": null,
+          "exit_code": 0,
+          "duration_ms": 9000,
+          "reason": null,
+          "detail": null
+        },
+        {
+          "phase": "bug-fix/tdd/green",
+          "state": "done",
+          "iteration": 2,
+          "actor": "claude",
+          "pipeline": null,
+          "child_run": null,
+          "mode": "headless",
+          "outputs": {},
+          "commit": "e5f6a7b",
+          "exit_code": 0,
+          "duration_ms": 1125000,
+          "reason": null,
+          "detail": null
+        }
+      ],
+      "children": [],
+      "missing_children": []
+    }
+  ],
+  "missing_children": []
+}
