@@ -1,5 +1,7 @@
 """Semantic rules of PROTOCOL section 10 that go beyond the schemas."""
 
+import re
+
 from lasagna_cli.issues import Issue
 from lasagna_cli.model import Project
 from lasagna_cli.schemas import primitive_copy_warnings
@@ -17,4 +19,9 @@ def validate_project(project: Project) -> list[Issue]:
         *check_expressions(project),
         *primitive_copy_warnings(project.root),
     ]
-    return sorted(issues, key=lambda issue: (issue.file, issue.field))
+    return sorted(issues, key=lambda i: (_natural(i.file), _natural(i.field)))
+
+
+def _natural(text: str) -> list[str | int]:
+    """Sort key where digit runs compare as numbers: phases[2] < phases[10]."""
+    return [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", text)]

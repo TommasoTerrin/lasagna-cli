@@ -226,3 +226,18 @@ def test_validate_project_sorts_by_file_then_field(project):
     write_pipeline(project, data)
     found = issues_of(project)
     assert found == sorted(found, key=lambda i: (i.file, i.field))
+
+
+def test_issues_use_natural_order(tmp_path):
+    from lasagna_cli.config import Config
+    from lasagna_cli.model import Project
+
+    given = [
+        Issue("a.yaml", "phases[10].id", "x"),
+        Issue("a.yaml", "phases[2].id", "x"),
+        Issue("a.yaml", "phases[2]", "x"),
+        Issue("a.yaml", "phases[1].id", "x"),
+    ]
+    project = Project(root=tmp_path, config=Config(), issues=given)
+    found = [i.field for i in validate_project(project) if i.file == "a.yaml"]
+    assert found == ["phases[1].id", "phases[2]", "phases[2].id", "phases[10].id"]
