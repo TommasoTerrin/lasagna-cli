@@ -1,0 +1,56 @@
+name: spec-to-code
+description: >-
+  Brainstorm a spec with Claude, then implement it with OpenCode item by item
+  until every checklist item is done.
+
+trigger:
+  by: [human]
+
+phases:
+  - id: brainstorm
+    description: Interactive brainstorming that ends with a spec approved in chat
+    actor: claude
+    interactive: true
+    harness:
+      main_skill: true
+    with:
+      model: large
+      prompt: >-
+        Follow the skill at ${{ harness.main_skill }}.
+    outputs:
+      spec-dir:
+        type: value
+        description: Folder chosen for this spec, for example specs/todo-app
+      spec:
+        type: file
+        path: ${{ outputs.spec-dir }}/spec.md
+
+  - id: implement
+    description: Implement the spec item by item and write a summary of the work
+    needs: [brainstorm]
+    trigger:
+      by: human
+      instructions: >-
+        Review the spec, then start the implementation with
+        `lasagna decide <run> implement start` or drop it with `skip`.
+    actor: opencode
+    harness:
+      main_skill: true
+    inputs:
+      spec-dir: ${{ phases.brainstorm.outputs.spec-dir }}
+    with:
+      model: medium
+      prompt: >-
+        Follow the skill at ${{ harness.main_skill }}.
+        The spec is ${{ inputs.spec-dir }}/spec.md and the summary goes in
+        ${{ inputs.spec-dir }}/summary.md.
+    outputs:
+      summary:
+        type: file
+        path: ${{ inputs.spec-dir }}/summary.md
+    loop:
+      max_iterations: 3
+      until:
+        by: machine
+        check: >-
+          ! grep -q '^[[:space:]]*- \[ \]' "$LASAGNA_INPUT_SPEC_DIR/spec.md"

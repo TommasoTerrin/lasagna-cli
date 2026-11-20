@@ -1,0 +1,32 @@
+type: agent
+name: claude
+description: Claude Code launched from the command line.
+
+# Params a phase can pass in `with`.
+# Commands receive them as LASAGNA_PARAM_PROMPT and LASAGNA_PARAM_MODEL.
+params:
+  prompt:
+    required: true
+  model:
+    required: false
+    description: An alias from `models` or a model id.
+
+# Phases use the alias, so the agent can be swapped at start time
+# (--bind phase=opencode) without touching the pipeline.
+models:
+  small: haiku
+  medium: sonnet
+  large: opus
+
+commands:
+  check:
+    - command -v claude
+  run: claude -p "$LASAGNA_PARAM_PROMPT" ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"}
+  run_interactive: claude ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} "$LASAGNA_PARAM_PROMPT"
+
+  # Example, disabled in the MVP: inject the main skill into the worktree.
+  # It stays confined to the run, and cleanup removes it before Lasagna commits.
+  # inject: >-
+  #   [ -z "$LASAGNA_MAIN_SKILL_DIR" ] ||
+  #   { mkdir -p .claude/skills && cp -r "$LASAGNA_MAIN_SKILL_DIR" ".claude/skills/$LASAGNA_MAIN_SKILL_NAME"; }
+  # cleanup: rm -rf ".claude/skills/$LASAGNA_MAIN_SKILL_NAME"

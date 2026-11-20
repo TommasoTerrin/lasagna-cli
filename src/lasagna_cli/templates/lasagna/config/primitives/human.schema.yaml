@@ -1,0 +1,15 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: lasagna:primitives/human
+title: human
+description: >-
+  Human actor. Runs manual phases and makes decisions through the CLI.
+  The MVP has a single human, `human`; roles, assignments and tenants will
+  come as extensions.
+type: object
+required: [type, name]
+additionalProperties: false
+properties:
+  type: { const: human }
+  name: { $ref: "lasagna:common#/$defs/name" }
+  description: { type: string }
+  metadata: { $ref: "lasagna:common#/$defs/metadata" }

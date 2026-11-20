@@ -1,0 +1,22 @@
+type: agent
+name: opencode
+description: OpenCode launched from the command line.
+
+params:
+  prompt:
+    required: true
+  model:
+    required: false
+    description: An alias from `models` or a model id in provider/model format.
+
+# Replace with your providers' ids: `opencode models` lists them.
+models:
+  small: "<provider>/<small-model>"
+  medium: "<provider>/<medium-model>"
+  large: "<provider>/<large-model>"
+
+commands:
+  check:
+    - command -v opencode
+  run: opencode run ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} "$LASAGNA_PARAM_PROMPT"
+  run_interactive: opencode ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} --prompt "$LASAGNA_PARAM_PROMPT"
