@@ -1,0 +1,63 @@
+"""Parser for `${{ ... }}` expressions: finds references, never evaluates."""
+
+import re
+from dataclasses import dataclass
+from typing import Literal
+
+OPEN = "${{"
+CLOSE = "}}"
+_NAME = r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*"
+
+# Order matters only for readability: the patterns are mutually exclusive.
+_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("pipeline.inputs", re.compile(rf"pipeline\.inputs\.(?P<name>{_NAME})")),
+    (
+        "phases",
+        re.compile(rf"phases\.(?P<phase>{_NAME})\.outputs\.(?P<name>{_NAME})"),
+    ),
+    ("inputs", re.compile(rf"inputs\.(?P<name>{_NAME})")),
+    ("outputs", re.compile(rf"outputs\.(?P<name>{_NAME})")),
+    ("harness.main_skill", re.compile(r"harness\.main_skill")),
+)
+
+
+class ExpressionError(ValueError):
+    """Raised for a malformed `${{ }}` expression."""
+
+
+@dataclass(frozen=True)
+class Ref:
+    scope: Literal[
+        "pipeline.inputs", "phases", "inputs", "outputs", "harness.main_skill"
+    ]
+    phase: str | None
+    name: str | None
+
+
+def has_expression(text: str) -> bool:
+    """True if the text contains the start of an expression."""
+    return OPEN in text
+
+
+def find_refs(text: str) -> list[Ref]:
+    """Return the references in order of appearance."""
+    refs: list[Ref] = []
+    position = 0
+    while (start := text.find(OPEN, position)) != -1:
+        end = text.find(CLOSE, start + len(OPEN))
+        if end == -1:
+            raise ExpressionError(f"unclosed '{OPEN}'")
+        refs.append(_parse(text[start + len(OPEN) : end].strip()))
+        position = end + len(CLOSE)
+    return refs
+
+
+def _parse(body: str) -> Ref:
+    if not body:
+        raise ExpressionError("empty expression")
+    for scope, pattern in _PATTERNS:
+        match = pattern.fullmatch(body)
+        if match:
+            groups = match.groupdict()
+            return Ref(scope, groups.get("phase"), groups.get("name"))  # type: ignore[arg-type]
+    raise ExpressionError(f"unknown reference '{body}'")
