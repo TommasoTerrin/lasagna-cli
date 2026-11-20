@@ -1,6 +1,7 @@
 import json
 import subprocess
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,7 @@ def repo(tmp_path: Path) -> Path:
     git("init", "-b", "main", cwd=root)
     git("config", "user.name", "Test", cwd=root)
     git("config", "user.email", "test@example.com", cwd=root)
+    git("config", "core.autocrlf", "false", cwd=root)
     return root
 
 
@@ -30,6 +32,14 @@ def repo(tmp_path: Path) -> Path:
 def project(repo: Path) -> Path:
     init_project(repo)
     return repo
+
+
+@pytest.fixture
+def committed_project(project: Path) -> Path:
+    """A project whose `.lasagna/` is committed, as `lasagna start` requires."""
+    git("add", "-A", cwd=project)
+    git("commit", "-m", "Add .lasagna", cwd=project)
+    return project
 
 
 def write_pipeline(
@@ -78,6 +88,21 @@ def base_pipeline(name: str = "p") -> dict:
     }
 
 
+def machine_pipeline(root: Path, name: str, *commands: str) -> Path:
+    """Write a chain of machine phases `a`, `b`, ... running the given commands."""
+    phases: list[dict] = []
+    for index, command in enumerate(commands):
+        phase: dict = {
+            "id": chr(ord("a") + index),
+            "actor": "machine",
+            "with": {"command": command},
+        }
+        if index:
+            phase["needs"] = [chr(ord("a") + index - 1)]
+        phases.append(phase)
+    return write_pipeline(root, {"name": name, "phases": phases})
+
+
 def ev(run_id: str, seq: int, event: str, **fields) -> dict:
     """A complete event dict as it appears in a log."""
     return {
@@ -112,3 +137,74 @@ def make_log(root: Path, run_id: str, events: Iterable[dict]) -> Path:
     text = "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events)
     path.write_bytes(text.encode("utf-8"))
     return path
+
+
+@dataclass
+class DriveResult:
+    code: int
+    run_id: str
+    worktree: Path
+    log: Path
+
+    @property
+    def events(self) -> list[dict]:
+        from lasagna_cli.eventlog import read_events
+
+        return read_events(self.log)
+
+    def kinds(self) -> list[str]:
+        return [e["event"] for e in self.events]
+
+
+def drive_run(
+    root: Path,
+    pipeline: str,
+    *,
+    inputs: dict[str, str] | None = None,
+    run_id: str | None = None,
+    runner=None,
+) -> DriveResult:
+    """What `lasagna start` does, minus the checks: worktree, run_started, drive."""
+    from lasagna_cli.definition import snapshot_project
+    from lasagna_cli.engine import Engine, RunContext
+    from lasagna_cli.eventlog import EventWriter
+    from lasagna_cli.gitops import add_worktree, head_commit
+    from lasagna_cli.locking import FileLock
+    from lasagna_cli.runs import run_lock_path, run_log_path
+
+    commit = head_commit(root)
+    run_id = run_id or f"{pipeline}_01"
+    worktree = root / ".lasagna" / "worktrees" / run_id
+    with snapshot_project(root, commit) as snapshot:
+        definition = snapshot.pipelines[pipeline]
+        add_worktree(root, worktree, f"lasagna/{run_id}", commit)
+        lock = FileLock(run_lock_path(root, run_id))
+        lock.acquire()
+        try:
+            log = run_log_path(root, run_id)
+            writer = EventWriter(log, run_id, lock)
+            writer.append(
+                "run_started",
+                pipeline=pipeline,
+                by="human",
+                inputs=inputs or {},
+                parent=None,
+                worktree=f".lasagna/worktrees/{run_id}",
+                branch=f"lasagna/{run_id}",
+                base_commit=commit,
+                definition=commit,
+            )
+            ctx = RunContext(
+                root=root,
+                run_id=run_id,
+                pipeline=definition,
+                project=snapshot,
+                worktree=worktree,
+                inputs=inputs or {},
+                base_commit=commit,
+            )
+            extra = {"runner": runner} if runner else {}
+            code = Engine(ctx, writer, **extra).drive()
+        finally:
+            lock.release()
+    return DriveResult(code, run_id, worktree, log)

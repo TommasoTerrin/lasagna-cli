@@ -1,6 +1,7 @@
 """Parser for `${{ ... }}` expressions: finds references, never evaluates."""
 
 import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Literal
 
@@ -39,17 +40,33 @@ def has_expression(text: str) -> bool:
     return OPEN in text
 
 
-def find_refs(text: str) -> list[Ref]:
-    """Return the references in order of appearance."""
-    refs: list[Ref] = []
+def _spans(text: str) -> Iterator[tuple[int, int, Ref]]:
+    """Yield (start, end, ref) for each expression, `end` after the closing `}}`."""
     position = 0
     while (start := text.find(OPEN, position)) != -1:
         end = text.find(CLOSE, start + len(OPEN))
         if end == -1:
             raise ExpressionError(f"unclosed '{OPEN}'")
-        refs.append(_parse(text[start + len(OPEN) : end].strip()))
+        ref = _parse(text[start + len(OPEN) : end].strip())
         position = end + len(CLOSE)
-    return refs
+        yield start, position, ref
+
+
+def find_refs(text: str) -> list[Ref]:
+    """Return the references in order of appearance."""
+    return [ref for _, _, ref in _spans(text)]
+
+
+def render(text: str, lookup: Callable[[Ref], str]) -> str:
+    """Replace each expression with `lookup(ref)`; values are never re-parsed."""
+    pieces: list[str] = []
+    last = 0
+    for start, end, ref in _spans(text):
+        pieces.append(text[last:start])
+        pieces.append(lookup(ref))
+        last = end
+    pieces.append(text[last:])
+    return "".join(pieces)
 
 
 def _parse(body: str) -> Ref:
