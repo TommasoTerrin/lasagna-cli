@@ -72,7 +72,9 @@ Ask before adding a runtime dependency.
 ## Workflow
 
 - Superpowers skills to use: writing-plans, executing-plans,
-  test-driven-development, verification-before-completion.
+  test-driven-development. The `verification-before-completion` skill no longer
+  exists; its role is covered by running the full test suite and both ruff
+  checks before every commit.
 - Do not use: brainstorming to redesign (the design is PROTOCOL.md),
   subagent-driven-development, requesting-code-review, receiving-code-review,
   systematic-debugging, dispatching-parallel-agents. If a bug resists, stop and
@@ -81,3 +83,5 @@ Ask before adding a runtime dependency.
   do not start the next one without approval.
 - Small commits with imperative English messages.
 - A task is done only when tests are green and ruff is clean.
+- Never pipe test or lint commands (for example into tail): check their exit
+  code directly.
