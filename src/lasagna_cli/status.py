@@ -19,7 +19,7 @@ def _phase_dict(phase: PhaseState) -> dict:
         "pipeline": phase.pipeline,
         "child_run": phase.child_run,
         "mode": phase.mode,
-        "outputs": phase.outputs,
+        "outputs": None if phase.state == "pending" else phase.outputs,
         "commit": phase.commit,
         "exit_code": phase.exit_code,
         "duration_ms": phase.duration_ms,

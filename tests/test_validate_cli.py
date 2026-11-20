@@ -67,6 +67,17 @@ def test_crlf_copy_does_not_warn(project, monkeypatch):
     assert primitive_copy_warnings(project) == []
 
 
+def test_crlf_schema_copies_give_no_warning_but_real_differences_do(project):
+    primitives = project / ".lasagna/config/primitives"
+    for path in primitives.glob("*.schema.yaml"):
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+    assert primitive_copy_warnings(project) == []
+    changed = primitives / "run.schema.yaml"
+    changed.write_bytes(changed.read_bytes() + b"# edited\r\n")
+    files = [w.file for w in primitive_copy_warnings(project)]
+    assert files == [".lasagna/config/primitives/run.schema.yaml"]
+
+
 def test_missing_primitive_copy_warns(project, monkeypatch):
     (project / RUN_SCHEMA).unlink()
     result = run_validate(monkeypatch, project)

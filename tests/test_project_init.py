@@ -25,7 +25,10 @@ def test_init_copies_templates_with_dotgitignore(repo):
     init_project(repo)
     src = templates_dir()
     expected = {
-        p.relative_to(src).as_posix().replace("gitignore", ".gitignore")
+        p.relative_to(src)
+        .as_posix()
+        .replace("gitignore", ".gitignore")
+        .replace("gitattributes", ".gitattributes")
         for p in src.rglob("*")
         if p.is_file()
     }
@@ -55,3 +58,29 @@ def test_init_cli_outside_git(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(app, ["init"])
     assert result.exit_code == 2 and "not inside a git repository" in result.output
+    assert "run git init first" in result.output
+
+
+def test_other_commands_outside_git_keep_the_plain_message(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(app, ["status"])
+    assert result.exit_code == 2
+    assert "not inside a git repository" in result.output
+    assert "git init" not in result.output
+
+
+def test_init_writes_gitattributes_forcing_lf(repo):
+    init_project(repo)
+    attributes = repo / ".lasagna" / ".gitattributes"
+    assert attributes.read_bytes() == b"* text=auto eol=lf\n"
+
+
+def test_worktree_files_stay_lf_with_autocrlf(repo):
+    git("config", "core.autocrlf", "true", cwd=repo)
+    init_project(repo)
+    git("add", "-A", cwd=repo)
+    git("commit", "-m", "init", cwd=repo)
+    worktree = repo.parent / "wt-lf"
+    git("worktree", "add", str(worktree), cwd=repo)
+    for name in ("config/lasagna.yaml", "config/primitives/run.schema.yaml"):
+        assert b"\r" not in (worktree / ".lasagna" / name).read_bytes()

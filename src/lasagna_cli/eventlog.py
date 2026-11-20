@@ -84,6 +84,10 @@ class EventWriter:
         except (ValueError, KeyError, TypeError):
             raise CorruptLogError(self.path, count, "invalid last line") from None
 
+    def resync(self) -> None:
+        """Recover after an interruption that may have hit inside `append`."""
+        self._seq = self._recover()
+
     def append(self, event: str, **fields: object) -> dict:
         """Validate and append one event; returns it as written."""
         entry = {

@@ -50,7 +50,10 @@ def test_fixture_tree(project):
     tree = load_run_tree(project, "bug-fix_03")
     assert [c.state.run_id for c in tree.children] == ["bug-fix_03.tdd.1"]
     assert tree.status == "done" and tree.interrupted == ()
-    assert tree.missing_children == () and tree.warnings == ()
+    assert tree.missing_children == ()
+    assert tree.warnings == (
+        "cannot read definition a1b2c3d; pending phases are not shown",
+    )
     assert tree.children[0].children == ()
 
 
@@ -142,7 +145,7 @@ def test_missing_child_log_is_reported(project):
 def test_interrupted_write_warning_is_carried(project):
     path = make_log(project, "p_01", [run_started("p_01")])
     path.write_bytes(path.read_bytes() + b'{"v": 1')
-    tree = load_run_tree(project, "p_01")
+    tree = load_run_tree(project, "p_01", definition_loader=None)
     assert len(tree.warnings) == 1 and "interrupted" in tree.warnings[0]
 
 

@@ -1,6 +1,8 @@
 """Command-line interface of Lasagna."""
 
+import functools
 import re
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
@@ -9,21 +11,31 @@ import typer
 from lasagna_cli import __version__
 from lasagna_cli.definition import DefinitionError, snapshot_project
 from lasagna_cli.engine import Engine, RunContext
-from lasagna_cli.eventlog import CorruptLogError, EventWriter
+from lasagna_cli.eventlog import CorruptLogError, EventWriter, read_events
 from lasagna_cli.gitops import (
     GitError,
     add_worktree,
     has_identity,
     head_commit,
     lasagna_changes,
+    remove_worktree,
 )
 from lasagna_cli.ids import check_custom_id, next_run_id, project_lock
 from lasagna_cli.loader import load_project
 from lasagna_cli.locking import FileLock, LockBusyError
 from lasagna_cli.project import NotAGitRepoError, find_repo_root
+from lasagna_cli.refs import (
+    RefError,
+    parse_decide_args,
+    resolve_phase,
+    resolve_run,
+    split_run_phase,
+)
 from lasagna_cli.runs import run_lock_path, run_log_path
 from lasagna_cli.runtree import load_root_summaries, load_run_tree
 from lasagna_cli.scaffold import init_project
+from lasagna_cli.session import RunBusyError, Session, open_session, open_writer
+from lasagna_cli.state import derive_state
 from lasagna_cli.status import (
     render_json,
     render_runs_json,
@@ -48,6 +60,13 @@ app = typer.Typer(
 )
 
 
+phase_app = typer.Typer(
+    no_args_is_help=True,
+    help="Run, complete or fail the open manual (human) phase of a run.",
+)
+app.add_typer(phase_app, name="phase")
+
+
 def _print_version(value: bool) -> None:
     if value:
         typer.echo(f"lasagna {__version__}")
@@ -67,6 +86,24 @@ def root(
     ] = False,
 ) -> None:
     """Orchestrate pipelines whose phases are run by humans, machines or agents."""
+
+
+def interruptible(func: Callable) -> Callable:
+    """Exit 130 on Ctrl+C outside the engine too (git calls, locks, worktrees).
+
+    The engine closes the run itself; here only the message and the exit code,
+    the locks being released by the `with` blocks the interrupt passes through.
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except KeyboardInterrupt:
+            typer.echo("interrupted", err=True)
+            raise typer.Exit(EXIT_INTERRUPTED) from None
+
+    return wrapper
 
 
 def _fail(message: str) -> typer.Exit:
@@ -91,7 +128,7 @@ def init() -> None:
     try:
         root = find_repo_root(Path.cwd())
     except NotAGitRepoError as error:
-        raise _fail(str(error)) from None
+        raise _fail(f"{error}; run git init first") from None
     try:
         init_project(root)
     except FileExistsError:
@@ -177,6 +214,7 @@ def _parse_inputs(pipeline, given: list[str]) -> dict[str, str]:
 
 
 @app.command()
+@interruptible
 def start(
     pipeline: Annotated[str, typer.Argument(help="Name of the pipeline to run.")],
     run_id: Annotated[
@@ -309,10 +347,266 @@ def _start_from_snapshot(
         code = Engine(context, writer).drive()
     finally:
         run_lock.release()
-    outcome = {EXIT_OK: "done", EXIT_FAILED: "failed", EXIT_INTERRUPTED: "interrupted"}
-    typer.echo(f"Run {chosen}: {outcome.get(code, 'stopped')}")
+    _report(context, code)
+
+
+def _report(ctx: RunContext, code: int) -> None:
+    """Say how the command ended and, for a wait, what the human can do."""
+    run_id = ctx.run_id
+    if code == EXIT_WAITING:
+        state = derive_state(read_events(run_log_path(ctx.root, run_id)))
+        typer.echo(f"Run {run_id}: waiting for a human")
+        for wait in state.waiting:
+            phase = wait.phase.removeprefix(f"{ctx.pipeline.name}/")
+            if wait.for_ == "trigger":
+                options = "start|skip"
+            else:
+                options = "|".join(ctx.pipeline.children(phase))
+            typer.echo(
+                f"  {wait.phase} ({wait.for_}, by {wait.by}): "
+                f"lasagna decide {run_id} {phase} {options}"
+            )
+        for item in state.phases:
+            if item.state == "running" and item.mode == "manual":
+                phase = item.phase.removeprefix(f"{ctx.pipeline.name}/")
+                has_command = "command" in ctx.pipeline.phase(phase).with_
+                verbs = "run|done|fail" if has_command else "done|fail"
+                typer.echo(
+                    f"  {item.phase} (manual): lasagna phase {verbs} {run_id} {phase}"
+                )
+    else:
+        outcome = {EXIT_OK: "done", EXIT_FAILED: "failed"}
+        typer.echo(f"Run {run_id}: {outcome.get(code, 'interrupted')}")
     if code != EXIT_OK:
         raise typer.Exit(code)
+
+
+@app.command()
+@interruptible
+def decide(
+    args: Annotated[
+        list[str],
+        typer.Argument(
+            help="[RUN] [PHASE] VALUE: start or skip for a trigger, a child phase "
+            "for a route. RUN and PHASE can be omitted when only one is waiting."
+        ),
+    ],
+) -> None:
+    """Record a human decision and drive the run to the next wait or the end."""
+    root = require_project_root()
+    try:
+        run_arg, phase_arg, value = parse_decide_args(root, args)
+        run_id = resolve_run(root, run_arg)
+        with open_session(root, run_id) as session:
+            _decide(root, session, phase_arg, value)
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except CorruptLogError as error:
+        raise _fail(str(error)) from None
+
+
+def _decide(root: Path, session: Session, phase_arg: str | None, value: str) -> None:
+    ctx = session.ctx
+    state = session.state()
+    if state.status in ("done", "failed", "cancelled"):
+        raise _fail(f"run '{ctx.run_id}' is {state.status}; nothing to decide")
+    full = resolve_phase(load_run_tree(root, ctx.run_id), phase_arg)
+    phase_id = full.removeprefix(f"{ctx.pipeline.name}/")
+    waits = [w for w in state.waiting if w.phase == full]
+    if not waits:
+        raise _fail(f"phase '{phase_id}' is not waiting for a decision")
+    wait = waits[0]
+    if wait.for_ == "trigger":
+        valid = ["start", "skip"]
+    elif wait.for_ == "route":
+        valid = ctx.pipeline.children(phase_id)
+    else:
+        raise _fail("loop decisions are not supported yet")
+    if value not in valid:
+        raise _fail(
+            f"invalid value '{value}' for the {wait.for_} of '{phase_id}'; "
+            f"valid values: {', '.join(valid)}"
+        )
+    session.writer.append(
+        "decision", phase=full, kind=wait.for_, by=wait.by, value=value
+    )
+    _report(ctx, Engine(ctx, session.writer).drive())
+
+
+RunPhaseArgs = Annotated[
+    list[str] | None,
+    typer.Argument(
+        help="[RUN] [PHASE]: both can be omitted when only one is waiting. "
+        "The phase is its id or its full name."
+    ),
+]
+
+
+@interruptible
+def _manual_command(args: list[str] | None, action) -> None:
+    """Open the run of a phase command, find the open manual phase, act on it."""
+    root = require_project_root()
+    try:
+        run_arg, phase_arg = split_run_phase(root, args or [])
+        run_id = resolve_run(root, run_arg)
+        with open_session(root, run_id) as session:
+            ctx = session.ctx
+            state = session.state()
+            if state.status in ("done", "failed", "cancelled"):
+                raise _fail(f"run '{run_id}' is {state.status}; nothing to do")
+            phase_id = _open_manual_phase(ctx, state, phase_arg)
+            engine = Engine(ctx, session.writer)
+            code = action(engine, ctx.pipeline.phase(phase_id))
+            if code is None:
+                code = engine.drive()
+            _report(ctx, code)
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except CorruptLogError as error:
+        raise _fail(str(error)) from None
+
+
+def _open_manual_phase(ctx: RunContext, state, given: str | None) -> str:
+    prefix = f"{ctx.pipeline.name}/"
+    open_names = [
+        p.phase for p in state.phases if p.state == "running" and p.mode == "manual"
+    ]
+    if not open_names:
+        raise _fail(f"no manual phase is running in run '{ctx.run_id}'")
+    if given is None:
+        return open_names[0].removeprefix(prefix)
+    full = given if "/" in given else f"{prefix}{given}"
+    if full not in open_names:
+        raise _fail(
+            f"phase '{given}' is not the running manual phase "
+            f"(running: {', '.join(open_names)})"
+        )
+    return full.removeprefix(prefix)
+
+
+@phase_app.command("run")
+def phase_run(args: RunPhaseArgs = None) -> None:
+    """Run the command of the open manual phase in the terminal."""
+
+    def action(engine: Engine, phase) -> int | None:
+        if "command" not in phase.with_:
+            raise _fail("this phase has no command; use lasagna phase done")
+        return engine.manual_run(phase.id)
+
+    _manual_command(args, action)
+
+
+@phase_app.command("done")
+def phase_done(
+    args: RunPhaseArgs = None,
+    output: Annotated[
+        list[str] | None,
+        typer.Option("--output", help="Value output as name=value. Repeatable."),
+    ] = None,
+) -> None:
+    """Declare the open manual phase done; its changes are committed."""
+
+    def action(engine: Engine, phase) -> int | None:
+        written: dict[str, str] = {}
+        for item in output or []:
+            name, separator, value = item.partition("=")
+            if not separator or not name:
+                raise _fail(f"invalid --output '{item}': expected name=value")
+            declared = phase.outputs.get(name)
+            if declared is None or declared.type != "value":
+                raise _fail(f"'{name}' is not a declared value output of this phase")
+            written[name] = value
+        return engine.manual_done(phase.id, written)
+
+    _manual_command(args, action)
+
+
+@phase_app.command("fail")
+def phase_fail(
+    args: RunPhaseArgs = None,
+    reason: Annotated[
+        str | None, typer.Option("--reason", help="Why the phase failed.")
+    ] = None,
+) -> None:
+    """Declare the open manual phase failed; the run fails with it."""
+
+    def action(engine: Engine, phase) -> int | None:
+        return engine.manual_fail(phase.id, reason)
+
+    _manual_command(args, action)
+
+
+@app.command()
+def cancel(
+    run: Annotated[
+        str | None,
+        typer.Argument(help="Run id. Omit it when only one run is active."),
+    ] = None,
+) -> None:
+    """Cancel a waiting or interrupted run."""
+    root = require_project_root()
+    try:
+        run_id = resolve_run(
+            root,
+            run,
+            lambda t: t.status in ("waiting", "running"),
+            "waiting or running",
+        )
+        with open_writer(root, run_id) as writer:
+            status = derive_state(read_events(writer.path)).status
+            if status not in ("waiting", "running"):
+                raise _fail(
+                    f"run '{run_id}' is {status}; only an active run can be cancelled"
+                )
+            writer.append("run_completed", status="cancelled", outputs={})
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except CorruptLogError as error:
+        raise _fail(str(error)) from None
+    typer.echo(f"Run {run_id}: cancelled")
+
+
+@app.command()
+def clean(
+    run: Annotated[
+        str | None,
+        typer.Argument(help="Run id. Omit it when only one run can be cleaned."),
+    ] = None,
+) -> None:
+    """Remove the worktree of a finished run; branch and log stay."""
+    root = require_project_root()
+
+    def cleanable(tree) -> bool:
+        concluded = tree.status in ("done", "failed", "cancelled")
+        return concluded and (root / tree.state.worktree).exists()
+
+    try:
+        run_id = resolve_run(root, run, cleanable, "ready to clean")
+        with open_writer(root, run_id) as writer:
+            state = derive_state(read_events(writer.path))
+            if state.status not in ("done", "failed", "cancelled"):
+                raise _fail(
+                    f"run '{run_id}' is {state.status}; "
+                    "only a finished run can be cleaned"
+                )
+            path = root / state.worktree
+            if not path.exists():
+                typer.echo(f"Worktree of {run_id} is already removed")
+                return
+            remove_worktree(root, path)
+    except RefError as error:
+        raise _fail(str(error)) from None
+    except RunBusyError:
+        raise _fail("run is being advanced by another command") from None
+    except (CorruptLogError, GitError) as error:
+        raise _fail(str(error)) from None
+    typer.echo(f"Removed worktree of {run_id}")
 
 
 def main() -> None:

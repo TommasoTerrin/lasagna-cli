@@ -84,7 +84,12 @@ def test_invalid_value_falls_back_to_default(tmp_path):
 def test_missing_file(tmp_path):
     config, issues = load_config(tmp_path / "nope.yaml", LABEL)
     assert config == Config()
-    assert issues == [Issue(LABEL, "", "missing config/lasagna.yaml")]
+    assert issues == [Issue(LABEL, "", "missing file")]
+
+
+def test_missing_file_does_not_repeat_the_path(tmp_path):
+    _, issues = load_config(tmp_path / "nope.yaml", LABEL)
+    assert str(issues[0]).count("lasagna.yaml") == 1
 
 
 def test_invalid_yaml(tmp_path):

@@ -526,14 +526,6 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
         ),
         ({"id": "x", "pipeline": "other"}, "sub-pipelines are not supported yet"),
         (
-            {"id": "x", "actor": "human"},
-            "human phases are not supported yet",
-        ),
-        (
-            machine("x", "true", trigger={"by": "human"}),
-            "human deciders are not supported yet",
-        ),
-        (
             machine("x", "true", trigger={"by": "claude", "prompt": "go"}),
             "agent deciders are not supported yet",
         ),
