@@ -85,3 +85,6 @@ Ask before adding a runtime dependency.
 - A task is done only when tests are green and ruff is clean.
 - Never pipe test or lint commands (for example into tail): check their exit
   code directly.
+- A local `.git/hooks/pre-commit` (not versioned) runs `uv run pytest -q` and both
+  ruff checks and blocks the commit if one fails. Never bypass it with
+  `--no-verify`.
