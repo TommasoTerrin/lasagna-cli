@@ -1,3 +1,4 @@
+import json
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
@@ -75,3 +76,39 @@ def base_pipeline(name: str = "p") -> dict:
             },
         ],
     }
+
+
+def ev(run_id: str, seq: int, event: str, **fields) -> dict:
+    """A complete event dict as it appears in a log."""
+    return {
+        "v": 1,
+        "seq": seq,
+        "ts": f"2026-11-20T09:00:{seq:02d}Z",
+        "run": run_id,
+        "event": event,
+        **fields,
+    }
+
+
+def run_started(run_id: str = "p_01", pipeline: str = "p", **over) -> dict:
+    fields = {
+        "pipeline": pipeline,
+        "by": "human",
+        "inputs": {},
+        "parent": None,
+        "worktree": f".lasagna/worktrees/{run_id}",
+        "branch": f"lasagna/{run_id}",
+        "base_commit": "a1b2c3d",
+        "definition": "a1b2c3d",
+    }
+    fields.update(over)
+    return ev(run_id, 1, "run_started", **fields)
+
+
+def make_log(root: Path, run_id: str, events: Iterable[dict]) -> Path:
+    """Write complete events as a run log under `root/.lasagna/runs/`."""
+    path = root / ".lasagna" / "runs" / f"{run_id}.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events)
+    path.write_bytes(text.encode("utf-8"))
+    return path
