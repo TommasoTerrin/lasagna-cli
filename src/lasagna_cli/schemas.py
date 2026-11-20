@@ -12,6 +12,9 @@ from jsonschema.exceptions import ValidationError, best_match
 from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT202012
 
+from lasagna_cli import __version__
+from lasagna_cli.issues import Issue
+
 PRIMITIVE_KINDS = ("human", "machine", "agent", "pipeline", "phase", "run")
 
 
@@ -102,3 +105,23 @@ def schema_errors(kind: str, instance: object) -> list[tuple[str, str]]:
             message = "not allowed here"
         found.add((path, message))
     return sorted(found)
+
+
+def primitive_copy_warnings(root: Path) -> list[Issue]:
+    """Warn when `.lasagna/config/primitives/` differs from the bundled schemas."""
+    warnings: list[Issue] = []
+    for bundled in sorted(bundled_primitives_dir().glob("*.schema.yaml")):
+        label = f".lasagna/config/primitives/{bundled.name}"
+        copy = root / label
+        if not copy.is_file():
+            message = "missing (bundled schemas are used)"
+        elif _lf(copy.read_bytes()) != _lf(bundled.read_bytes()):
+            message = f"differs from the schema bundled with lasagna {__version__}"
+        else:
+            continue
+        warnings.append(Issue(label, "", message, "warning"))
+    return warnings
+
+
+def _lf(data: bytes) -> bytes:
+    return data.replace(b"\r\n", b"\n")

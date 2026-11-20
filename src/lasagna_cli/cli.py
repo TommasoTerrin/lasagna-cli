@@ -6,8 +6,10 @@ from typing import Annotated
 import typer
 
 from lasagna_cli import __version__
+from lasagna_cli.loader import load_project
 from lasagna_cli.project import NotAGitRepoError, find_repo_root
 from lasagna_cli.scaffold import init_project
+from lasagna_cli.validation import validate_project
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -60,6 +62,30 @@ def init() -> None:
     except FileExistsError:
         raise _fail(".lasagna/ already exists") from None
     typer.echo("Created .lasagna/")
+
+
+@app.command()
+def validate() -> None:
+    """Check the schemas and the rules of every actor and pipeline."""
+    try:
+        root = find_repo_root(Path.cwd())
+    except NotAGitRepoError as error:
+        raise _fail(str(error)) from None
+    if not (root / ".lasagna").is_dir():
+        raise _fail("no .lasagna/ found; run lasagna init")
+    project = load_project(root)
+    issues = validate_project(project)
+    for issue in issues:
+        typer.echo(str(issue))
+    errors = sum(1 for i in issues if i.severity == "error")
+    warnings = len(issues) - errors
+    if errors:
+        typer.echo(f"{errors} errors, {warnings} warnings")
+        raise typer.Exit(EXIT_USAGE)
+    typer.echo(
+        f"valid: {len(project.actors)} actors, {len(project.pipelines)} pipelines "
+        f"({warnings} warnings)"
+    )
 
 
 def main() -> None:

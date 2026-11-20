@@ -2,6 +2,7 @@
 
 from lasagna_cli.issues import Issue
 from lasagna_cli.model import Project
+from lasagna_cli.schemas import primitive_copy_warnings
 from lasagna_cli.validation.actors import check_actors
 from lasagna_cli.validation.expr_rules import check_expressions
 from lasagna_cli.validation.references import check_references
@@ -14,5 +15,6 @@ def validate_project(project: Project) -> list[Issue]:
         *check_references(project),
         *check_actors(project),
         *check_expressions(project),
+        *primitive_copy_warnings(project.root),
     ]
     return sorted(issues, key=lambda issue: (issue.file, issue.field))
