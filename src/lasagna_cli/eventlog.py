@@ -3,6 +3,7 @@
 import json
 import os
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,6 +23,14 @@ class CorruptLogError(Exception):
 
 class InvalidEventError(ValueError):
     """An event that does not match the `run` schema; nothing was written."""
+
+
+@dataclass(frozen=True)
+class LogRead:
+    """What `read_log` found: the complete events and any warnings."""
+
+    events: list[dict]
+    warnings: list[str]
 
 
 def utc_now() -> datetime:
@@ -97,3 +106,51 @@ class EventWriter:
             os.fsync(handle.fileno())
         self._seq += 1
         return entry
+
+
+def read_log(path: Path) -> LogRead:
+    """Read a run log, checking every line.
+
+    A last line without a trailing newline is an interrupted write: it is
+    ignored and reported as a warning. Anything else wrong is corruption.
+    """
+    pieces = path.read_bytes().split(b"\n")
+    partial = pieces.pop()  # b"" when the file ends with a newline
+    events: list[dict] = []
+    for number, raw in enumerate(pieces, start=1):
+        events.append(_check_line(path, number, raw, events))
+    warnings = []
+    if partial:
+        warnings.append(f"{path.as_posix()}: ignored an interrupted last line")
+    return LogRead(events, warnings)
+
+
+def read_events(path: Path) -> list[dict]:
+    """The complete events of a log, without the warnings."""
+    return read_log(path).events
+
+
+def _check_line(path: Path, number: int, raw: bytes, previous: list[dict]) -> dict:
+    def corrupt(reason: str) -> CorruptLogError:
+        return CorruptLogError(path, number, reason)
+
+    if not raw.strip():
+        raise corrupt("blank line")
+    try:
+        event = json.loads(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        raise corrupt("invalid UTF-8") from None
+    except ValueError:
+        raise corrupt("invalid JSON") from None
+    errors = schema_errors("run", event)
+    if errors:
+        field, message = errors[0]
+        raise corrupt(f"{field}: {message}" if field else message)
+    if event["run"] != path.stem:
+        raise corrupt(f"run must be '{path.stem}'")
+    expected = len(previous) + 1
+    if event["seq"] != expected:
+        raise corrupt(f"seq must be {expected}, found {event['seq']}")
+    if not previous and event["event"] != "run_started":
+        raise corrupt("first event must be run_started")
+    return event
