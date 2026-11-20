@@ -130,3 +130,17 @@ def commit_all(worktree: Path, message: str) -> str | None:
         return None
     _raw(worktree, "commit", "--no-verify", "-m", message)
     return head_commit(worktree)
+
+
+def run_git_bytes(cwd: Path, *args: str) -> bytes:
+    """Run git in `cwd` and return its stdout as bytes; `GitError` on failure."""
+    try:
+        result = subprocess.run(
+            ["git", *args], cwd=cwd, capture_output=True, env=git_env()
+        )
+    except FileNotFoundError:
+        raise GitError("git is not installed or not on PATH") from None
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        raise GitError(f"git {' '.join(args)} failed: {stderr}")
+    return result.stdout

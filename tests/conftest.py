@@ -23,6 +23,7 @@ def repo(tmp_path: Path) -> Path:
     git("init", "-b", "main", cwd=root)
     git("config", "user.name", "Test", cwd=root)
     git("config", "user.email", "test@example.com", cwd=root)
+    git("config", "core.autocrlf", "false", cwd=root)
     return root
 
 
@@ -30,6 +31,14 @@ def repo(tmp_path: Path) -> Path:
 def project(repo: Path) -> Path:
     init_project(repo)
     return repo
+
+
+@pytest.fixture
+def committed_project(project: Path) -> Path:
+    """A project whose `.lasagna/` is committed, as `lasagna start` requires."""
+    git("add", "-A", cwd=project)
+    git("commit", "-m", "Add .lasagna", cwd=project)
+    return project
 
 
 def write_pipeline(
@@ -76,6 +85,21 @@ def base_pipeline(name: str = "p") -> dict:
             },
         ],
     }
+
+
+def machine_pipeline(root: Path, name: str, *commands: str) -> Path:
+    """Write a chain of machine phases `a`, `b`, ... running the given commands."""
+    phases: list[dict] = []
+    for index, command in enumerate(commands):
+        phase: dict = {
+            "id": chr(ord("a") + index),
+            "actor": "machine",
+            "with": {"command": command},
+        }
+        if index:
+            phase["needs"] = [chr(ord("a") + index - 1)]
+        phases.append(phase)
+    return write_pipeline(root, {"name": name, "phases": phases})
 
 
 def ev(run_id: str, seq: int, event: str, **fields) -> dict:
