@@ -91,7 +91,7 @@ def init() -> None:
     try:
         root = find_repo_root(Path.cwd())
     except NotAGitRepoError as error:
-        raise _fail(str(error)) from None
+        raise _fail(f"{error}; run git init first") from None
     try:
         init_project(root)
     except FileExistsError:

@@ -19,7 +19,7 @@ class Config:
 def load_config(path: Path, label: str) -> tuple[Config, list[Issue]]:
     """Read the config file; invalid values fall back to the defaults."""
     if not path.is_file():
-        return Config(), [Issue(label, "", "missing config/lasagna.yaml")]
+        return Config(), [Issue(label, "", "missing file")]
     try:
         data = yaml.safe_load(path.read_text("utf-8"))
     except yaml.YAMLError as error:
