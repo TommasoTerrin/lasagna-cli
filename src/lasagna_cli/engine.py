@@ -24,6 +24,7 @@ from lasagna_cli.state import PhaseState, RunState, derive_state
 
 EXIT_OK = 0
 EXIT_FAILED = 1
+EXIT_WAITING = 3
 EXIT_INTERRUPTED = 130
 
 
@@ -135,12 +136,21 @@ class Engine:
         self.writer.append("run_completed", status="failed")
         return EXIT_INTERRUPTED
 
-    def _machine_decider(self, phase_id: str, decider: Decider) -> None:
+    def _decider_kind(self, phase_id: str, decider: Decider) -> str:
+        """ "human" or "machine"; agent deciders are refused at `start`."""
         actor = self.ctx.project.actors.get(decider.by)
-        if actor is None or actor.type != "machine":
+        if actor is None or actor.type not in ("human", "machine"):
             raise EngineError(
-                f"phase '{phase_id}': only machine deciders are supported yet"
+                f"phase '{phase_id}': agent deciders are not supported yet"
             )
+        return actor.type
+
+    def _wait(self, state: RunState, phase_id: str, kind: str, by: str) -> int:
+        """Record that a human is awaited, once per wait, and return the exit code."""
+        full = self._full(phase_id)
+        if not any(w.phase == full and w.for_ == kind for w in state.waiting):
+            self.writer.append("phase_waiting", phase=full, **{"for": kind}, by=by)
+        return EXIT_WAITING
 
     def _env(
         self,
@@ -198,18 +208,20 @@ class Engine:
         self.writer.append("run_completed", status="done", outputs=outputs)
 
     def _trigger(
-        self, phase: Phase, existing: PhaseState | None
+        self, phase: Phase, state: RunState, existing: PhaseState | None
     ) -> tuple[str, int | None]:
-        """Returns ("start" | "skip", exit code when the phase failed)."""
+        """Returns ("start" | "skip", None), or ("", exit code) when the run stops."""
         decider = phase.trigger
         if decider is None:
             return "start", None
-        self._machine_decider(phase.id, decider)
+        kind = self._decider_kind(phase.id, decider)
         recorded = [
             d for d in (existing.decisions if existing else ()) if d.kind == "trigger"
         ]
         if recorded:
             return recorded[-1].value, None
+        if kind == "human":
+            return "", self._wait(state, phase.id, "trigger", decider.by)
         if decider.check is None:
             return "start", None
         code, written = self._run_check(phase.id, decider.check)
@@ -232,16 +244,18 @@ class Engine:
         ctx = self.ctx
         phase = ctx.pipeline.phase(phase_id)
         actor = ctx.project.actors.get(phase.actor) if phase.actor else None
-        if phase.pipeline is not None or actor is None or actor.type != "machine":
-            raise EngineError(f"phase '{phase_id}': only machine phases run yet")
+        if phase.pipeline is not None or actor is None or actor.type == "agent":
+            raise EngineError(f"phase '{phase_id}': only machine and human phases run")
         existing = self._phase_state(state, phase_id)
         if existing is not None and existing.state == "running":
+            if existing.mode == "manual":
+                return EXIT_WAITING
             raise EngineError(f"phase '{phase_id}' is already running")
         full = self._full(phase_id)
 
-        decision, failed = self._trigger(phase, existing)
-        if failed is not None:
-            return failed
+        decision, stop = self._trigger(phase, state, existing)
+        if stop is not None:
+            return stop
         if decision == "skip":
             self.writer.append("phase_skipped", phase=full, reason="trigger")
             return None
@@ -254,6 +268,8 @@ class Engine:
             except UnresolvedError as error:
                 return self._fail(phase_id, "missing_input", f"{name}: {error}")
 
+        if actor.type == "human":
+            return self._open_manual(phase, full, inputs, state)
         self.writer.append(
             "phase_started",
             phase=full,
@@ -292,12 +308,41 @@ class Engine:
         )
         return None
 
+    def _open_manual(
+        self, phase: Phase, full: str, inputs: dict[str, str], state: RunState
+    ) -> int:
+        """Open a human phase: record `phase_started` (manual) and wait."""
+        params: dict[str, str] = {}
+        text = phase.with_.get("instructions")
+        if text is not None:
+            scope = self._scope(state, inputs=inputs)
+            try:
+                params["instructions"] = resolve_text(text, scope)
+            except UnresolvedError as error:
+                return self._fail(phase.id, "missing_input", f"instructions: {error}")
+        fields: dict[str, object] = {}
+        if params:
+            fields["params"] = params
+        self.writer.append(
+            "phase_started",
+            phase=full,
+            actor=phase.actor,
+            mode="manual",
+            iteration=1,
+            inputs=inputs,
+            **fields,
+        )
+        return EXIT_WAITING
+
     def _route(self, phase_id: str, state: RunState) -> int | None:
         phase = self.ctx.pipeline.phase(phase_id)
         decider = phase.route
-        if decider is None or decider.check is None:
+        if decider is None:
+            raise EngineError(f"phase '{phase_id}': no route to decide")
+        if self._decider_kind(phase_id, decider) == "human":
+            return self._wait(state, phase_id, "route", decider.by)
+        if decider.check is None:
             raise EngineError(f"phase '{phase_id}': a machine route needs a check")
-        self._machine_decider(phase_id, decider)
         existing = self._phase_state(state, phase_id)
         inputs = existing.inputs if existing else {}
         code, written = self._run_check(phase_id, decider.check, inputs)

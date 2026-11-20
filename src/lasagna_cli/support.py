@@ -1,7 +1,7 @@
 """Features the engine does not run yet; `start` refuses pipelines that use them.
 
 Each later milestone removes its entries from `unsupported_features`:
-M3b human phases and deciders, M4 agents, loops, timeouts and interactive
+M4 agents, loops, timeouts and interactive
 phases, M5 sub-pipelines.
 """
 
@@ -14,8 +14,6 @@ def _decider_messages(project: Project, decider: Decider | None) -> list[str]:
     actor = project.actors.get(decider.by)
     if actor is None:
         return []
-    if actor.type == "human":
-        return ["human deciders are not supported yet"]
     if actor.type == "agent":
         return ["agent deciders are not supported yet"]
     return []
@@ -28,8 +26,6 @@ def _phase_messages(project: Project, phase: Phase) -> list[str]:
     actor = project.actors.get(phase.actor) if phase.actor else None
     if actor is not None and actor.type == "agent":
         messages.append("agent actors are not supported yet")
-    if actor is not None and actor.type == "human":
-        messages.append("human phases are not supported yet")
     if phase.interactive:
         messages.append("interactive phases are not supported yet")
     if phase.loop is not None:

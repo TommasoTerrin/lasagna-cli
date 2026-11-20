@@ -208,3 +208,35 @@ def drive_run(
         finally:
             lock.release()
     return DriveResult(code, run_id, worktree, log)
+
+
+def redrive(root: Path, run_id: str, *events: tuple[str, dict]) -> DriveResult:
+    """Append events (as a command like `decide` would), then drive the run again."""
+    from lasagna_cli.definition import snapshot_project
+    from lasagna_cli.engine import Engine, RunContext
+    from lasagna_cli.eventlog import EventWriter, read_events
+    from lasagna_cli.locking import FileLock
+    from lasagna_cli.runs import run_lock_path, run_log_path
+
+    log = run_log_path(root, run_id)
+    first = read_events(log)[0]
+    with snapshot_project(root, first["definition"]) as snapshot:
+        lock = FileLock(run_lock_path(root, run_id))
+        lock.acquire()
+        try:
+            writer = EventWriter(log, run_id, lock)
+            for kind, fields in events:
+                writer.append(kind, **fields)
+            ctx = RunContext(
+                root=root,
+                run_id=run_id,
+                pipeline=snapshot.pipelines[first["pipeline"]],
+                project=snapshot,
+                worktree=root / first["worktree"],
+                inputs=first["inputs"],
+                base_commit=first["base_commit"],
+            )
+            code = Engine(ctx, writer).drive()
+        finally:
+            lock.release()
+    return DriveResult(code, run_id, root / first["worktree"], log)
