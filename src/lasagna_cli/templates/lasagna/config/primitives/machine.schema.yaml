@@ -1,0 +1,15 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: lasagna:primitives/machine
+title: machine
+description: >-
+  Machine actor. Runs deterministic commands automatically, through bash in
+  the run's worktree. The MVP only has `machine`, i.e. the local machine;
+  execution constraints (hosts, addresses, workers) will come as extensions.
+type: object
+required: [type, name]
+additionalProperties: false
+properties:
+  type: { const: machine }
+  name: { $ref: "lasagna:common#/$defs/name" }
+  description: { type: string }
+  metadata: { $ref: "lasagna:common#/$defs/metadata" }

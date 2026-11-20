@@ -1,0 +1,13 @@
+# Lasagna settings for this project.
+version: 1
+
+# Shell used to run every command. "auto" means bash on macOS and Linux and
+# Git for Windows' bash on Windows (never WSL's bash.exe). Or an absolute path.
+shell: auto
+
+limits:
+  max_depth: 3                # maximum nesting depth of sub-pipelines
+
+worktrees:
+  dir: .lasagna/worktrees     # where run worktrees are created (git-ignored)
+  branch_prefix: lasagna/     # run branches are named lasagna/<run-id>

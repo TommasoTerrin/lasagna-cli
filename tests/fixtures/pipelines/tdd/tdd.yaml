@@ -1,0 +1,59 @@
+name: tdd
+description: Red test, check that it is red, then code until green.
+
+trigger:
+  by: [human]                    # started by a human; as a sub-pipeline, by its parent
+
+inputs:
+  report:
+    description: Path of the document describing the problem
+
+outputs:
+  test-file: ${{ phases.red.outputs.test-file }}
+
+phases:
+  - id: red
+    description: Write a test that reproduces the problem
+    actor: claude
+    harness:
+      main_skill: true
+    inputs:
+      report: ${{ pipeline.inputs.report }}
+    with:
+      model: medium
+      prompt: >-
+        Follow the skill at ${{ harness.main_skill }}.
+        Write a failing test for the problem described in ${{ inputs.report }}
+        and write its path as a line test-file=... in the file $LASAGNA_OUTPUT.
+    outputs:
+      test-file:
+        type: value
+
+  - id: verify-red
+    description: The test must fail before any code is touched
+    needs: [red]
+    actor: machine
+    inputs:
+      test-file: ${{ phases.red.outputs.test-file }}
+    with:
+      command: '! npm test -- "$LASAGNA_INPUT_TEST_FILE"'
+
+  - id: green
+    description: Change the code until every test passes
+    needs: [verify-red]
+    actor: claude
+    harness:
+      main_skill: true
+    inputs:
+      test-file: ${{ phases.red.outputs.test-file }}
+    with:
+      model: medium
+      prompt: >-
+        Follow the skill at ${{ harness.main_skill }}.
+        Make ${{ inputs.test-file }} pass without breaking the other tests.
+    loop:
+      max_iterations: 5
+      until:
+        by: machine
+        check: npm test
+    timeout: 30m

@@ -1,0 +1,3 @@
+# Default human: whoever uses the CLI. The only human in the MVP.
+type: human
+name: human

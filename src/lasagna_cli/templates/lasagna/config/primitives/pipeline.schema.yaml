@@ -1,0 +1,62 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: lasagna:primitives/pipeline
+title: pipeline
+description: >-
+  Graph of phases from a single starting phase to the end. The file is named
+  <name>.yaml and lives in .lasagna/pipelines/<name>/ next to its harness folder.
+type: object
+required: [name, phases]
+additionalProperties: false
+properties:
+  name: { $ref: "lasagna:common#/$defs/name" }
+  description: { type: string }
+  trigger:
+    description: >-
+      Passive trigger: lists who may start the pipeline with `lasagna start`.
+      Defaults to `by: [human]`. Does not apply when the pipeline runs as a
+      sub-pipeline.
+    type: object
+    required: [by]
+    additionalProperties: false
+    properties:
+      by:
+        type: array
+        minItems: 1
+        uniqueItems: true
+        items: { $ref: "lasagna:common#/$defs/name" }
+  inputs:
+    description: Values passed at start with --input name=value.
+    type: object
+    propertyNames: { $ref: "lasagna:common#/$defs/name" }
+    additionalProperties:
+      type: object
+      additionalProperties: false
+      properties:
+        description: { type: string }
+        required: { type: boolean, default: true }
+        default: { type: string }
+  outputs:
+    description: >-
+      Values exported when the pipeline runs as a sub-pipeline: expressions
+      over its phases' outputs.
+    type: object
+    propertyNames: { $ref: "lasagna:common#/$defs/name" }
+    additionalProperties: { type: string }
+  harness:
+    description: Skills and MCP servers inherited by every phase run by an agent.
+    type: object
+    additionalProperties: false
+    properties:
+      skills:
+        type: array
+        uniqueItems: true
+        items: { $ref: "lasagna:common#/$defs/name" }
+      mcp:
+        type: array
+        uniqueItems: true
+        items: { $ref: "lasagna:common#/$defs/name" }
+  phases:
+    type: array
+    minItems: 1
+    items: { $ref: "lasagna:primitives/phase" }
+  metadata: { $ref: "lasagna:common#/$defs/metadata" }

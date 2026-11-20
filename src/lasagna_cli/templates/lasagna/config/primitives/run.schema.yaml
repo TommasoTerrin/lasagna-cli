@@ -1,0 +1,96 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: lasagna:primitives/run
+title: run
+description: >-
+  One line of the state file .lasagna/runs/<run-id>.jsonl. The file is an
+  append-only log written only by Lasagna; the current state is obtained by
+  replaying events in `seq` order.
+type: object
+required: [v, seq, ts, run, event]
+additionalProperties: false
+properties:
+  v: { const: 1 }
+  seq: { type: integer, minimum: 1 }
+  ts: { type: string, format: date-time }
+  run: { type: string }
+  event:
+    enum: [run_started, run_resumed, phase_waiting, decision, phase_started,
+           phase_skipped, phase_completed, phase_failed, run_completed]
+  pipeline:
+    description: Pipeline name (run_started) or sub-pipeline name (phase_started).
+    type: string
+  by:
+    description: Actor that acted. For a child run, the parent run id.
+    type: string
+  inputs: { $ref: "#/$defs/values" }
+  parent:
+    oneOf:
+      - type: "null"
+      - type: object
+        required: [run, phase]
+        additionalProperties: false
+        properties:
+          run: { type: string }
+          phase: { type: string }
+  bind:
+    description: >-
+      run_started only, present when the run was started with --bind: phase id
+      → actor that replaces the phase's actor. Needed to resume the run.
+    type: object
+    additionalProperties: { type: string }
+  worktree: { type: string }
+  branch: { type: string }
+  base_commit: { type: string }
+  definition:
+    description: Commit the pipeline definition was read from.
+    type: string
+  phase:
+    description: Full phase name, e.g. bug-fix/tdd/red.
+    type: string
+  for: { enum: [trigger, route, loop] }
+  kind: { enum: [trigger, route, loop] }
+  value: { type: string }
+  actor: { type: string }
+  mode: { enum: [headless, interactive, manual, pipeline] }
+  iteration: { type: integer, minimum: 1 }
+  params:
+    description: Resolved params, prompt included. Basis for telemetry and evaluation.
+    $ref: "#/$defs/values"
+  child_run: { type: string }
+  reason:
+    enum: [trigger, pruned, exit_code, missing_input, missing_output,
+           check_failed, invalid_decision, timeout, max_iterations,
+           merge_conflict, interrupted, manual, child_failed]
+  detail: { type: string }
+  exit_code: { type: integer }
+  outputs: { $ref: "#/$defs/values" }
+  commit: { type: [string, "null"] }
+  duration_ms: { type: integer, minimum: 0 }
+  status: { enum: [done, failed, cancelled] }
+allOf:
+  - if: { properties: { event: { const: run_started } } }
+    then: { required: [pipeline, by, inputs, parent, worktree, branch, base_commit, definition] }
+  - if: { properties: { event: { const: run_resumed } } }
+    then: { required: [by] }
+  - if: { properties: { event: { const: phase_waiting } } }
+    then: { required: [phase, for, by] }
+  - if: { properties: { event: { const: decision } } }
+    then: { required: [phase, kind, by, value] }
+  - if: { properties: { event: { const: phase_started } } }
+    then:
+      required: [phase, mode, iteration]
+      oneOf:
+        - required: [actor]
+        - required: [pipeline, child_run]
+  - if: { properties: { event: { const: phase_skipped } } }
+    then: { required: [phase, reason] }
+  - if: { properties: { event: { const: phase_completed } } }
+    then: { required: [phase, outputs, commit, duration_ms] }
+  - if: { properties: { event: { const: phase_failed } } }
+    then: { required: [phase, reason] }
+  - if: { properties: { event: { const: run_completed } } }
+    then: { required: [status] }
+$defs:
+  values:
+    type: object
+    additionalProperties: { type: string }

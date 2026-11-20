@@ -1,0 +1,16 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: lasagna:common
+title: common definitions
+description: Shared definitions used by the primitive schemas. Not a primitive itself.
+$defs:
+  name:
+    description: >-
+      Kebab-case identifier. Used for actors, pipelines, phases, params,
+      inputs, outputs, skills and MCP servers.
+    type: string
+    pattern: "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+    maxLength: 64
+  metadata:
+    description: >-
+      Free-form field ignored by Lasagna. A safety valve until extensions exist.
+    type: object

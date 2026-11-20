@@ -1,0 +1,67 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: lasagna:primitives/agent
+title: agent
+description: >-
+  Agent actor: any program that can be launched from a command line (a coding
+  agent, a curl call to an API, an executable). The definition declares which
+  params it accepts and how it is launched; values come from phases via `with`.
+type: object
+required: [type, name, params, commands]
+additionalProperties: false
+properties:
+  type: { const: agent }
+  name: { $ref: "lasagna:common#/$defs/name" }
+  description: { type: string }
+  params:
+    description: >-
+      Accepted params. A phase passes values in `with`; commands receive them
+      only as LASAGNA_PARAM_<NAME> environment variables. `prompt` is always
+      present and required.
+    type: object
+    required: [prompt]
+    propertyNames: { $ref: "lasagna:common#/$defs/name" }
+    properties:
+      prompt:
+        allOf:
+          - $ref: "#/$defs/param"
+          - required: [required]
+            properties:
+              required: { const: true }
+    additionalProperties: { $ref: "#/$defs/param" }
+  models:
+    description: >-
+      Alias → real model id. If a phase's `model` param is one of these keys,
+      Lasagna replaces it with the value.
+    type: object
+    propertyNames: { $ref: "lasagna:common#/$defs/name" }
+    additionalProperties: { type: string }
+  commands:
+    type: object
+    required: [run]
+    additionalProperties: false
+    properties:
+      check:
+        description: Preliminary checks; all must exit 0.
+        type: array
+        items: { type: string }
+      inject:
+        description: Optional. Makes the skills and MCP servers listed by the phase available to the agent.
+        type: string
+      run:
+        description: Non-interactive launch.
+        type: string
+      run_interactive:
+        description: "Interactive launch, for phases with interactive: true."
+        type: string
+      cleanup:
+        description: Optional. Removes what `inject` added, before Lasagna commits.
+        type: string
+  metadata: { $ref: "lasagna:common#/$defs/metadata" }
+$defs:
+  param:
+    type: object
+    additionalProperties: false
+    properties:
+      required: { type: boolean, default: false }
+      default: { type: string }
+      description: { type: string }

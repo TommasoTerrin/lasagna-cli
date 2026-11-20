@@ -1,0 +1,98 @@
+name: bug-fix
+description: From a GitHub issue to a verified fix, with a final human review.
+
+trigger:
+  by: [human, claude]            # started by a person or by an agent
+
+inputs:
+  issue:
+    description: GitHub issue number
+
+outputs:
+  report: ${{ phases.triage.outputs.report }}
+
+harness:                         # inherited by every phase run by an agent
+  skills: [repo-conventions]
+
+phases:
+  - id: fetch-issue
+    description: Download the issue title and body
+    actor: machine
+    inputs:
+      issue: ${{ pipeline.inputs.issue }}
+    with:
+      command: >-
+        mkdir -p "bugs/$LASAGNA_INPUT_ISSUE" &&
+        gh issue view "$LASAGNA_INPUT_ISSUE" --json title,body > "bugs/$LASAGNA_INPUT_ISSUE/issue.json"
+    outputs:
+      issue-file:
+        type: file
+        path: bugs/${{ inputs.issue }}/issue.json
+
+  - id: triage
+    description: Discuss the bug with the agent and write a report with the proposed fix
+    needs: [fetch-issue]
+    trigger:
+      by: human                  # starts when the human is ready
+    actor: claude
+    interactive: true
+    harness:
+      main_skill: true
+    inputs:
+      issue: ${{ pipeline.inputs.issue }}
+      issue-file: ${{ phases.fetch-issue.outputs.issue-file }}
+    with:
+      model: large
+      prompt: >-
+        Follow the skill at ${{ harness.main_skill }}.
+        The bug is described in ${{ inputs.issue-file }}.
+        Write the report to bugs/${{ inputs.issue }}/report.md and the severity
+        (low, medium or high) as a line severity=... in the file $LASAGNA_OUTPUT.
+    outputs:
+      report:
+        type: file
+        path: bugs/${{ inputs.issue }}/report.md
+      severity:
+        type: value
+    route:
+      by: claude
+      prompt: >-
+        Read ${{ outputs.report }}. The severity is ${{ outputs.severity }}.
+        If the fix touches a single file and the severity is low choose
+        quick-fix, otherwise choose tdd.
+
+  - id: quick-fix
+    description: Direct fix, repeated until the tests pass
+    needs: [triage]
+    actor: claude
+    harness:
+      main_skill: true
+    inputs:
+      report: ${{ phases.triage.outputs.report }}
+    with:
+      model: medium
+      prompt: >-
+        Follow the skill at ${{ harness.main_skill }}.
+        Fix the bug described in ${{ inputs.report }}.
+    loop:
+      max_iterations: 3
+      until:
+        by: machine
+        check: npm test
+    timeout: 30m
+
+  - id: tdd
+    description: TDD fix, in a sub-pipeline with its own worktree
+    needs: [triage]
+    pipeline: tdd
+    inputs:
+      report: ${{ phases.triage.outputs.report }}
+
+  - id: review
+    description: Final review of the diff
+    needs: [quick-fix, tdd]      # join: starts after the branch chosen by the route
+    actor: human
+    with:
+      instructions: >-
+        Review the diff of the run branch. If it is fine close with
+        `lasagna phase done`, otherwise with `lasagna phase fail`.

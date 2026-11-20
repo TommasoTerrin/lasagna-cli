@@ -1,0 +1,3 @@
+# Default machine: runs commands locally, in the run's worktree.
+type: machine
+name: machine

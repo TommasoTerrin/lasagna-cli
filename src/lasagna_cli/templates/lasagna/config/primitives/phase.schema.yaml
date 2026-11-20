@@ -1,0 +1,134 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: lasagna:primitives/phase
+title: phase
+description: >-
+  Pipeline node. Run by an actor (`actor`) or by another pipeline
+  (`pipeline`). The phase kind is not declared: it follows from the actor
+  (human/machine → deterministic, agent → agent-driven, pipeline → sub-pipeline).
+type: object
+required: [id]
+additionalProperties: false
+oneOf:
+  - required: [actor]
+  - required: [pipeline]
+allOf:
+  - description: A sub-pipeline phase has no params, harness or own outputs.
+    if:
+      required: [pipeline]
+    then:
+      properties:
+        interactive: false
+        with: false
+        harness: false
+        outputs: false
+  - description: An interactive phase has no timeout.
+    if:
+      required: [interactive]
+      properties: { interactive: { const: true } }
+    then:
+      properties:
+        timeout: false
+properties:
+  id: { $ref: "lasagna:common#/$defs/name" }
+  description: { type: string }
+  needs:
+    description: Parent phases. The phase without `needs` is the starting one (exactly one per pipeline).
+    type: array
+    uniqueItems: true
+    items: { $ref: "lasagna:common#/$defs/name" }
+  trigger:
+    description: Who decides whether to start the phase. If missing, the phase starts as soon as possible (machine).
+    $ref: "#/$defs/decider"
+  actor: { $ref: "lasagna:common#/$defs/name" }
+  pipeline: { $ref: "lasagna:common#/$defs/name" }
+  interactive:
+    description: Agents only. Uses `run_interactive` instead of `run`.
+    type: boolean
+    default: false
+  with:
+    description: >-
+      Params for the actor. machine → command; human → instructions and an
+      optional command; agent → the params of its definition.
+    type: object
+    propertyNames: { $ref: "lasagna:common#/$defs/name" }
+    additionalProperties: { type: string }
+  harness:
+    description: >-
+      Agents only. Indicative: Lasagna checks that the files exist and exposes
+      them; the agent's `inject` command decides how to use them.
+    type: object
+    additionalProperties: false
+    properties:
+      main_skill:
+        description: harness/phases/<id>/SKILL.md exists.
+        type: boolean
+        default: false
+      skills:
+        type: array
+        uniqueItems: true
+        items: { $ref: "lasagna:common#/$defs/name" }
+      mcp:
+        type: array
+        uniqueItems: true
+        items: { $ref: "lasagna:common#/$defs/name" }
+  inputs:
+    description: Values the phase needs to start, as expressions. All required in the MVP.
+    type: object
+    propertyNames: { $ref: "lasagna:common#/$defs/name" }
+    additionalProperties: { type: string }
+  outputs:
+    description: >-
+      Declared outputs; all must be present when the phase ends. Not allowed on
+      a sub-pipeline phase, whose outputs are the child pipeline's `outputs`.
+    type: object
+    propertyNames: { $ref: "lasagna:common#/$defs/name" }
+    additionalProperties: { $ref: "#/$defs/output" }
+  route:
+    description: Who picks the next branch. Required when the phase has more than one child.
+    $ref: "#/$defs/decider"
+  loop:
+    description: Repeats the phase until `until` decides stop.
+    type: object
+    required: [max_iterations, until]
+    additionalProperties: false
+    properties:
+      max_iterations: { type: integer, minimum: 1 }
+      until: { $ref: "#/$defs/decider" }
+  timeout:
+    description: >-
+      Maximum duration of one execution of the main command. Not allowed on
+      interactive phases.
+    type: string
+    pattern: "^[0-9]+(s|m|h)$"
+  metadata: { $ref: "lasagna:common#/$defs/metadata" }
+$defs:
+  decider:
+    description: >-
+      Decision made by an actor. Allowed fields depend on the type of `by`:
+      check (machine), prompt (agent), instructions (human).
+    type: object
+    required: [by]
+    additionalProperties: false
+    properties:
+      by: { $ref: "lasagna:common#/$defs/name" }
+      check: { type: string }
+      prompt: { type: string }
+      instructions: { type: string }
+  output:
+    type: object
+    required: [type]
+    additionalProperties: false
+    properties:
+      type: { enum: [file, value] }
+      path:
+        description: >-
+          Only for `file`. Path inside the worktree. May use expressions,
+          including value outputs of the same phase (outputs.<name>).
+        type: string
+      description: { type: string }
+    if:
+      properties: { type: { const: file } }
+    then:
+      required: [path]
+    else:
+      not: { required: [path] }
