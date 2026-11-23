@@ -308,3 +308,51 @@ def test_start_help_documents_options() -> None:
         assert option in plain
     assert "Name of the pipeline to run" in plain
     assert "Run id to use" in plain
+
+
+def add_other_machine(root: Path) -> None:
+    path = root / ".lasagna" / "actors" / "other.yaml"
+    path.write_text("type: machine\nname: other\n", encoding="utf-8", newline="\n")
+    commit(root, "other actor")
+
+
+def test_start_bind_replaces_the_actor_of_a_phase(
+    ready: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    add_other_machine(ready)
+    result = start(monkeypatch, ready, "p", "--bind", "a=other")
+    assert result.exit_code == 0, result.output
+    events = events_of(ready, "p_01")
+    assert events[0]["bind"] == {"a": "other"}
+    actors = {e["phase"]: e["actor"] for e in events if e["event"] == "phase_started"}
+    assert actors == {"p/a": "other", "p/b": "machine"}
+
+
+def test_start_without_bind_records_no_bind_field(
+    ready: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert start(monkeypatch, ready, "p").exit_code == 0
+    assert "bind" not in events_of(ready, "p_01")[0]
+
+
+@pytest.mark.parametrize(
+    ("option", "message"),
+    [
+        ("a", "expected phase=actor"),
+        ("zzz=machine", "unknown phase 'zzz'"),
+        ("a=ghost", "unknown actor 'ghost'"),
+        ("a=claude", "agent"),
+    ],
+)
+def test_start_bind_errors_exit_2(
+    ready: Path, monkeypatch: pytest.MonkeyPatch, option: str, message: str
+) -> None:
+    result = start(monkeypatch, ready, "p", "--bind", option)
+    assert result.exit_code == 2
+    assert message in result.output
+    assert not run_log_path(ready, "p_01").exists()
+
+
+def test_start_help_documents_bind(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    result = start(monkeypatch, tmp_path, "--help")
+    assert "--bind" in result.output

@@ -23,7 +23,7 @@ class PhaseExecutor:
         run = self.run
         ctx = run.ctx
         phase = ctx.pipeline.phase(phase_id)
-        actor = ctx.project.actors.get(phase.actor) if phase.actor else None
+        actor = run.actor(phase)
         if phase.pipeline is not None or actor is None or actor.type == "agent":
             raise EngineError(f"phase '{phase_id}': only machine and human phases run")
         existing = run.phase_state(state, phase_id)
@@ -53,7 +53,7 @@ class PhaseExecutor:
         run.writer.append(
             "phase_started",
             phase=full,
-            actor=phase.actor,
+            actor=run.actor_name(phase),
             mode="headless",
             iteration=1,
             inputs=inputs,
@@ -127,7 +127,7 @@ class PhaseExecutor:
         run.writer.append(
             "phase_started",
             phase=full,
-            actor=phase.actor,
+            actor=run.actor_name(phase),
             mode="manual",
             iteration=1,
             inputs=inputs,

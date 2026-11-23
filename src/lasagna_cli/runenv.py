@@ -9,12 +9,12 @@ records failures. Nothing here decides what to run next. `RunContext`,
 import os
 import sys
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from lasagna_cli.eventlog import EventWriter, read_events
 from lasagna_cli.gitops import local_git_env_vars
-from lasagna_cli.model import Decider, Pipeline, Project
+from lasagna_cli.model import Actor, Decider, Phase, Pipeline, Project
 from lasagna_cli.outputs import new_output_file, parse_output_file
 from lasagna_cli.resolve import Scope
 from lasagna_cli.runner import build_env
@@ -40,6 +40,7 @@ class RunContext:
     worktree: Path
     inputs: dict[str, str]
     base_commit: str
+    bind: dict[str, str] = field(default_factory=dict)
 
 
 Runner = Callable[..., int]
@@ -65,6 +66,14 @@ class RunEnv:
 
     def full(self, phase_id: str) -> str:
         return f"{self.ctx.pipeline.name}/{phase_id}"
+
+    def actor_name(self, phase: Phase) -> str | None:
+        """The actor that runs the phase, after `--bind`."""
+        return self.ctx.bind.get(phase.id, phase.actor)
+
+    def actor(self, phase: Phase) -> Actor | None:
+        name = self.actor_name(phase)
+        return self.ctx.project.actors.get(name) if name else None
 
     def phase_state(self, state: RunState, phase_id: str) -> PhaseState | None:
         full = self.full(phase_id)

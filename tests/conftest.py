@@ -163,6 +163,7 @@ def drive_run(
     inputs: dict[str, str] | None = None,
     run_id: str | None = None,
     runner=None,
+    bind: dict[str, str] | None = None,
 ) -> DriveResult:
     """What `lasagna start` does, minus the checks: worktree, run_started, drive."""
     from lasagna_cli.definition import snapshot_project
@@ -193,6 +194,7 @@ def drive_run(
                 branch=f"lasagna/{run_id}",
                 base_commit=commit,
                 definition=commit,
+                **({"bind": bind} if bind else {}),
             )
             ctx = RunContext(
                 root=root,
@@ -202,6 +204,7 @@ def drive_run(
                 worktree=worktree,
                 inputs=inputs or {},
                 base_commit=commit,
+                bind=dict(bind or {}),
             )
             extra = {"runner": runner} if runner else {}
             code = Engine(ctx, writer, **extra).drive()
@@ -235,6 +238,7 @@ def redrive(root: Path, run_id: str, *events: tuple[str, dict]) -> DriveResult:
                 worktree=root / first["worktree"],
                 inputs=first["inputs"],
                 base_commit=first["base_commit"],
+                bind=dict(first.get("bind", {})),
             )
             code = Engine(ctx, writer).drive()
         finally:
