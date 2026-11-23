@@ -304,10 +304,11 @@ def test_start_launched_from_a_git_hook(ready: Path) -> None:
 def test_start_help_documents_options() -> None:
     result = CliRunner().invoke(app, ["start", "--help"])
     plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
-    for option in ("--id", "--input", "--as"):
+    for option in ("--id", "--input", "--as", "--bind"):
         assert option in plain
     assert "Name of the pipeline to run" in plain
     assert "Run id to use" in plain
+    assert "Replace the actor of a phase" in plain
 
 
 def add_other_machine(root: Path) -> None:
@@ -351,8 +352,3 @@ def test_start_bind_errors_exit_2(
     assert result.exit_code == 2
     assert message in result.output
     assert not run_log_path(ready, "p_01").exists()
-
-
-def test_start_help_documents_bind(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    result = start(monkeypatch, tmp_path, "--help")
-    assert "--bind" in result.output
