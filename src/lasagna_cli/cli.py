@@ -9,6 +9,7 @@ from typing import Annotated
 import typer
 
 from lasagna_cli import __version__
+from lasagna_cli.bind import BindError, check_bind, parse_bind
 from lasagna_cli.definition import DefinitionError, snapshot_project
 from lasagna_cli.engine import Engine, RunContext
 from lasagna_cli.eventlog import CorruptLogError, EventWriter, read_events
@@ -229,6 +230,13 @@ def start(
         str | None,
         typer.Option("--as", help="Actor starting the run (default: human)."),
     ] = None,
+    bind: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--bind",
+            help="Replace the actor of a phase, as phase=actor. Repeatable.",
+        ),
+    ] = None,
 ) -> None:
     """Start a run in its own worktree and drive it until the next human wait."""
     root = require_project_root()
@@ -255,7 +263,14 @@ def start(
         commit = head_commit(root)
         with snapshot_project(root, commit) as snapshot:
             _start_from_snapshot(
-                root, snapshot, commit, pipeline, run_id, inputs or [], as_actor
+                root,
+                snapshot,
+                commit,
+                pipeline,
+                run_id,
+                inputs or [],
+                as_actor,
+                bind or [],
             )
     except (GitError, DefinitionError) as error:
         raise _fail(str(error)) from None
@@ -269,6 +284,7 @@ def _start_from_snapshot(
     run_id: str | None,
     given_inputs: list[str],
     as_actor: str | None,
+    bind_items: list[str],
 ) -> None:
     errors = [str(i) for i in validate_project(snapshot) if i.severity == "error"]
     if errors:
@@ -290,6 +306,13 @@ def _start_from_snapshot(
             f"(trigger.by: {allowed})"
         )
     values = _parse_inputs(definition, given_inputs)
+    try:
+        bind = parse_bind(bind_items)
+    except BindError as error:
+        raise _fail(str(error)) from None
+    bind_errors = check_bind(snapshot, definition, bind)
+    if bind_errors:
+        raise _fail_all(bind_errors)
 
     config = snapshot.config
     try:
@@ -313,6 +336,7 @@ def _start_from_snapshot(
         branch = f"{config.branch_prefix}{chosen}"
         add_worktree(root, worktree, branch, commit)
         writer = EventWriter(run_log_path(root, chosen), chosen, run_lock)
+        extra: dict[str, object] = {"bind": bind} if bind else {}
         writer.append(
             "run_started",
             pipeline=pipeline,
@@ -323,6 +347,7 @@ def _start_from_snapshot(
             branch=branch,
             base_commit=commit,
             definition=commit,
+            **extra,
         )
     except BaseException:
         if run_lock is not None:
@@ -343,6 +368,7 @@ def _start_from_snapshot(
             worktree=worktree,
             inputs=values,
             base_commit=commit,
+            bind=bind,
         )
         code = Engine(context, writer).drive()
     finally:
@@ -360,6 +386,8 @@ def _report(ctx: RunContext, code: int) -> None:
             phase = wait.phase.removeprefix(f"{ctx.pipeline.name}/")
             if wait.for_ == "trigger":
                 options = "start|skip"
+            elif wait.for_ == "loop":
+                options = "stop|continue"
             else:
                 options = "|".join(ctx.pipeline.children(phase))
             typer.echo(
@@ -388,7 +416,8 @@ def decide(
         list[str],
         typer.Argument(
             help="[RUN] [PHASE] VALUE: start or skip for a trigger, a child phase "
-            "for a route. RUN and PHASE can be omitted when only one is waiting."
+            "for a route, stop or continue for a loop. RUN and PHASE can be "
+            "omitted when only one is waiting."
         ),
     ],
 ) -> None:
@@ -423,7 +452,7 @@ def _decide(root: Path, session: Session, phase_arg: str | None, value: str) -> 
     elif wait.for_ == "route":
         valid = ctx.pipeline.children(phase_id)
     else:
-        raise _fail("loop decisions are not supported yet")
+        valid = ["stop", "continue"]
     if value not in valid:
         raise _fail(
             f"invalid value '{value}' for the {wait.for_} of '{phase_id}'; "

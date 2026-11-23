@@ -138,11 +138,11 @@ def test_fixed_but_uncommitted_pipeline_is_refused_as_dirty(
 
 def test_unsupported_feature_is_refused(committed_project: Path, monkeypatch) -> None:
     data = base_pipeline("p")
-    data["phases"][0]["timeout"] = "5s"
+    data["phases"][0]["trigger"] = {"by": "claude", "prompt": "go"}
     write_pipeline(committed_project, data)
     commit(committed_project)
     result = start(monkeypatch, committed_project, "p")
-    refused(result, "phase 'a' of pipeline 'p': timeout is not supported yet")
+    refused(result, "phase 'a' of pipeline 'p': agent deciders are not supported yet")
 
 
 def test_unknown_pipeline(ready: Path, monkeypatch) -> None:
@@ -304,7 +304,51 @@ def test_start_launched_from_a_git_hook(ready: Path) -> None:
 def test_start_help_documents_options() -> None:
     result = CliRunner().invoke(app, ["start", "--help"])
     plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
-    for option in ("--id", "--input", "--as"):
+    for option in ("--id", "--input", "--as", "--bind"):
         assert option in plain
     assert "Name of the pipeline to run" in plain
     assert "Run id to use" in plain
+    assert "Replace the actor of a phase" in plain
+
+
+def add_other_machine(root: Path) -> None:
+    path = root / ".lasagna" / "actors" / "other.yaml"
+    path.write_text("type: machine\nname: other\n", encoding="utf-8", newline="\n")
+    commit(root, "other actor")
+
+
+def test_start_bind_replaces_the_actor_of_a_phase(
+    ready: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    add_other_machine(ready)
+    result = start(monkeypatch, ready, "p", "--bind", "a=other")
+    assert result.exit_code == 0, result.output
+    events = events_of(ready, "p_01")
+    assert events[0]["bind"] == {"a": "other"}
+    actors = {e["phase"]: e["actor"] for e in events if e["event"] == "phase_started"}
+    assert actors == {"p/a": "other", "p/b": "machine"}
+
+
+def test_start_without_bind_records_no_bind_field(
+    ready: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert start(monkeypatch, ready, "p").exit_code == 0
+    assert "bind" not in events_of(ready, "p_01")[0]
+
+
+@pytest.mark.parametrize(
+    ("option", "message"),
+    [
+        ("a", "expected phase=actor"),
+        ("zzz=machine", "unknown phase 'zzz'"),
+        ("a=ghost", "unknown actor 'ghost'"),
+        ("a=claude", "agent"),
+    ],
+)
+def test_start_bind_errors_exit_2(
+    ready: Path, monkeypatch: pytest.MonkeyPatch, option: str, message: str
+) -> None:
+    result = start(monkeypatch, ready, "p", "--bind", option)
+    assert result.exit_code == 2
+    assert message in result.output
+    assert not run_log_path(ready, "p_01").exists()

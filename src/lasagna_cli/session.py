@@ -57,5 +57,6 @@ def open_session(root: Path, run_id: str) -> Iterator[Session]:
                 worktree=root / first["worktree"],
                 inputs=dict(first["inputs"]),
                 base_commit=first["base_commit"],
+                bind=dict(first.get("bind", {})),
             )
             yield Session(ctx, writer)

@@ -3,48 +3,44 @@
 Every step starts from the state replayed out of the log, never from memory
 (PROTOCOL section 9). User commands run with `bash -c` and receive their data
 only as environment variables, never interpolated into the shell string.
+
+The work itself lives in `runenv` (shared helpers), `deciders`, `phases` and
+`manual`; this module keeps the loop, the interruption handling and the
+public API.
 """
 
-import os
 import sys
-import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
 
-from lasagna_cli.eventlog import EventWriter, read_events, utc_now
+from lasagna_cli.deciders import Deciders
+from lasagna_cli.eventlog import EventWriter
 from lasagna_cli.flow import DecideRoute, Execute, Finish, Prune, next_step
-from lasagna_cli.gitops import commit_all, local_git_env_vars
-from lasagna_cli.model import Decider, Phase, Pipeline, Project
-from lasagna_cli.outputs import collect_outputs, new_output_file, parse_output_file
-from lasagna_cli.resolve import Scope, UnresolvedError, resolve_text
-from lasagna_cli.runner import Interrupted, build_env, run_shell
-from lasagna_cli.shell import to_bash_path
-from lasagna_cli.state import PhaseState, RunState, derive_state
+from lasagna_cli.manual import ManualPhases
+from lasagna_cli.phases import PhaseExecutor
+from lasagna_cli.resolve import UnresolvedError, resolve_text
+from lasagna_cli.runenv import (
+    EXIT_FAILED,
+    EXIT_INTERRUPTED,
+    EXIT_OK,
+    EXIT_WAITING,
+    EngineError,
+    RunContext,
+    RunEnv,
+    Runner,
+)
+from lasagna_cli.runner import Interrupted, run_shell
+from lasagna_cli.state import RunState
 
-EXIT_OK = 0
-EXIT_FAILED = 1
-EXIT_WAITING = 3
-EXIT_INTERRUPTED = 130
-
-
-class EngineError(Exception):
-    """A situation the engine cannot handle; `start` refuses these up front."""
-
-
-@dataclass
-class RunContext:
-    root: Path
-    run_id: str
-    pipeline: Pipeline
-    project: Project
-    worktree: Path
-    inputs: dict[str, str]
-    base_commit: str
-
-
-Runner = Callable[..., int]
+__all__ = [
+    "EXIT_FAILED",
+    "EXIT_INTERRUPTED",
+    "EXIT_OK",
+    "EXIT_WAITING",
+    "Engine",
+    "EngineError",
+    "RunContext",
+    "Runner",
+]
 
 
 class Engine:
@@ -62,6 +58,10 @@ class Engine:
         self.writer = writer
         self.runner = runner
         self.platform = platform
+        self.run = RunEnv(ctx, writer, runner, platform)
+        self.deciders = Deciders(self.run)
+        self.executor = PhaseExecutor(self.run, self.deciders)
+        self.manual = ManualPhases(self.run, self.executor)
         self._current: str | None = None
 
     # -- main loop ---------------------------------------------------------
@@ -81,67 +81,26 @@ class Engine:
     def _drive(self) -> int:
         while True:
             self._current = None
-            state = self._state()
+            state = self.run.state()
             step = next_step(self.ctx.pipeline, state)
             if isinstance(step, Finish):
                 self._finish(state)
                 return EXIT_OK
             phase_id = step.phase_id
-            full = self._full(phase_id)
+            full = self.run.full(phase_id)
             self._current = full
             if isinstance(step, Prune):
                 self.writer.append("phase_skipped", phase=full, reason="pruned")
                 continue
             if isinstance(step, DecideRoute):
-                code = self._route(phase_id, state)
+                code = self.deciders.route(phase_id, state)
             else:
                 assert isinstance(step, Execute)
-                code = self._execute(phase_id, state)
+                code = self.executor.execute(phase_id, state)
             if code is not None:
                 return code
 
-    # -- helpers -----------------------------------------------------------
-
-    def _state(self) -> RunState:
-        return derive_state(read_events(self.writer.path))
-
-    def _full(self, phase_id: str) -> str:
-        return f"{self.ctx.pipeline.name}/{phase_id}"
-
-    def _phase_state(self, state: RunState, phase_id: str) -> PhaseState | None:
-        full = self._full(phase_id)
-        return next((p for p in state.phases if p.phase == full), None)
-
-    def _done_outputs(self, state: RunState) -> dict[str, dict[str, str]]:
-        prefix = f"{self.ctx.pipeline.name}/"
-        return {
-            p.phase.removeprefix(prefix): dict(p.outputs)
-            for p in state.phases
-            if p.state == "done"
-        }
-
-    def _scope(self, state: RunState, **parts: dict[str, str] | None) -> Scope:
-        return Scope(
-            pipeline_inputs=self.ctx.inputs,
-            phase_outputs=self._done_outputs(state),
-            **parts,
-        )
-
-    def _fail(
-        self,
-        phase_id: str,
-        reason: str,
-        detail: str | None = None,
-        exit_code: int | None = None,
-    ) -> int:
-        fields: dict[str, object] = {"phase": self._full(phase_id), "reason": reason}
-        if detail is not None:
-            fields["detail"] = detail
-        if exit_code is not None:
-            fields["exit_code"] = exit_code
-        self.writer.append("phase_failed", **fields)
-        self.writer.append("run_completed", status="failed")
-        return EXIT_FAILED
+    # -- interruption ------------------------------------------------------
 
     def _close_interrupted(self) -> int:
         """Write the events of an interruption; the log stays valid.
@@ -151,7 +110,7 @@ class Engine:
         """
         full = self._current
         self.writer.resync()
-        state = self._state()
+        state = self.run.state()
         if state.status in ("done", "failed", "cancelled"):
             return EXIT_INTERRUPTED
         current = next((p for p in state.phases if p.phase == full), None)
@@ -161,78 +120,14 @@ class Engine:
         return EXIT_INTERRUPTED
 
     def _guarded(self, phase_id: str, action: Callable[[], int | None]) -> int | None:
-        self._current = self._full(phase_id)
+        self._current = self.run.full(phase_id)
         try:
             return action()
         except (Interrupted, KeyboardInterrupt):
             return self._close_interrupted()
 
-    def _decider_kind(self, phase_id: str, decider: Decider) -> str:
-        """ "human" or "machine"; agent deciders are refused at `start`."""
-        actor = self.ctx.project.actors.get(decider.by)
-        if actor is None or actor.type not in ("human", "machine"):
-            raise EngineError(
-                f"phase '{phase_id}': agent deciders are not supported yet"
-            )
-        return actor.type
-
-    def _wait(self, state: RunState, phase_id: str, kind: str, by: str) -> int:
-        """Record that a human is awaited, once per wait, and return the exit code."""
-        full = self._full(phase_id)
-        if not any(w.phase == full and w.for_ == kind for w in state.waiting):
-            self.writer.append("phase_waiting", phase=full, **{"for": kind}, by=by)
-        return EXIT_WAITING
-
-    def _env(
-        self,
-        phase_id: str,
-        output: Path,
-        inputs: Mapping[str, str] | None = None,
-    ) -> dict[str, str]:
-        ctx = self.ctx
-        variables = {
-            "LASAGNA_RUN_ID": ctx.run_id,
-            "LASAGNA_PIPELINE": ctx.pipeline.name,
-            "LASAGNA_PHASE": self._full(phase_id),
-            "LASAGNA_ITERATION": "1",
-            "LASAGNA_WORKTREE": to_bash_path(ctx.worktree.resolve()),
-            "LASAGNA_OUTPUT": to_bash_path(output.resolve()),
-            "LASAGNA_STATE": to_bash_path(self.writer.path.resolve()),
-        }
-        for name, value in (inputs or {}).items():
-            variables[f"LASAGNA_INPUT_{name.upper().replace('-', '_')}"] = value
-        return build_env(
-            os.environ,
-            variables,
-            self.platform,
-            drop=local_git_env_vars(),
-        )
-
-    def _run_command(
-        self, command: str, env: Mapping[str, str], *, inherit_stdin: bool = False
-    ) -> int:
-        return self.runner(
-            command,
-            cwd=self.ctx.worktree,
-            env=env,
-            inherit_stdin=inherit_stdin,
-            bash_setting=self.ctx.project.config.shell,
-        )
-
-    def _run_check(
-        self,
-        phase_id: str,
-        check: str,
-        inputs: Mapping[str, str] | None = None,
-    ) -> tuple[int, dict[str, str]]:
-        output = new_output_file(self.ctx.worktree, self.ctx.run_id)
-        code = self._run_command(check, self._env(phase_id, output, inputs))
-        return code, parse_output_file(output)
-
-    # -- steps -------------------------------------------------------------
-
     def _finish(self, state: RunState) -> None:
-        scope = self._scope(state)
+        scope = self.run.scope(state)
         outputs: dict[str, str] = {}
         for name, text in self.ctx.pipeline.outputs.items():
             try:
@@ -241,143 +136,7 @@ class Engine:
                 continue  # omitted in a root run (PROTOCOL section 6)
         self.writer.append("run_completed", status="done", outputs=outputs)
 
-    def _trigger(
-        self, phase: Phase, state: RunState, existing: PhaseState | None
-    ) -> tuple[str, int | None]:
-        """Returns ("start" | "skip", None), or ("", exit code) when the run stops."""
-        decider = phase.trigger
-        if decider is None:
-            return "start", None
-        kind = self._decider_kind(phase.id, decider)
-        recorded = [
-            d for d in (existing.decisions if existing else ()) if d.kind == "trigger"
-        ]
-        if recorded:
-            return recorded[-1].value, None
-        if kind == "human":
-            return "", self._wait(state, phase.id, "trigger", decider.by)
-        if decider.check is None:
-            return "start", None
-        code, written = self._run_check(phase.id, decider.check)
-        value = written.get("decision")
-        if value is None:
-            value = "start" if code == 0 else "skip"
-        elif value not in ("start", "skip"):
-            detail = f"trigger check wrote decision={value!r}; expected start or skip"
-            return "", self._fail(phase.id, "invalid_decision", detail)
-        self.writer.append(
-            "decision",
-            phase=self._full(phase.id),
-            kind="trigger",
-            by=decider.by,
-            value=value,
-        )
-        return value, None
-
-    def _execute(self, phase_id: str, state: RunState) -> int | None:
-        ctx = self.ctx
-        phase = ctx.pipeline.phase(phase_id)
-        actor = ctx.project.actors.get(phase.actor) if phase.actor else None
-        if phase.pipeline is not None or actor is None or actor.type == "agent":
-            raise EngineError(f"phase '{phase_id}': only machine and human phases run")
-        existing = self._phase_state(state, phase_id)
-        if existing is not None and existing.state == "running":
-            if existing.mode == "manual":
-                return EXIT_WAITING
-            raise EngineError(f"phase '{phase_id}' is already running")
-        full = self._full(phase_id)
-
-        decision, stop = self._trigger(phase, state, existing)
-        if stop is not None:
-            return stop
-        if decision == "skip":
-            self.writer.append("phase_skipped", phase=full, reason="trigger")
-            return None
-
-        inputs: dict[str, str] = {}
-        scope = self._scope(state)
-        for name, text in phase.inputs.items():
-            try:
-                inputs[name] = resolve_text(text, scope)
-            except UnresolvedError as error:
-                return self._fail(phase_id, "missing_input", f"{name}: {error}")
-
-        if actor.type == "human":
-            return self._open_manual(phase, full, inputs, state)
-        self.writer.append(
-            "phase_started",
-            phase=full,
-            actor=phase.actor,
-            mode="headless",
-            iteration=1,
-            inputs=inputs,
-        )
-        output = new_output_file(ctx.worktree, ctx.run_id)
-        started = time.monotonic()
-        code = self._run_command(
-            phase.with_["command"], self._env(phase_id, output, inputs)
-        )
-        if code != 0:
-            return self._fail(phase_id, "exit_code", exit_code=code)
-
-        return self._complete(
-            phase,
-            state,
-            inputs,
-            parse_output_file(output),
-            int((time.monotonic() - started) * 1000),
-            exit_code=0,
-        )
-
-    def _complete(
-        self,
-        phase: Phase,
-        state: RunState,
-        inputs: dict[str, str],
-        written: Mapping[str, str],
-        duration_ms: int,
-        exit_code: int | None,
-    ) -> int | None:
-        """Verify the declared outputs, commit, record `phase_completed`."""
-        ctx = self.ctx
-        full = self._full(phase.id)
-
-        def resolve_path(template: str, values: dict[str, str]) -> str:
-            return resolve_text(
-                template, self._scope(state, inputs=inputs, outputs=values)
-            )
-
-        result = collect_outputs(phase.outputs, written, ctx.worktree, resolve_path)
-        if result.missing:
-            return self._fail(phase.id, "missing_output", "; ".join(result.errors))
-        sha = commit_all(ctx.worktree, f"lasagna({ctx.run_id}): {full}")
-        fields: dict[str, object] = {
-            "outputs": result.outputs,
-            "commit": sha,
-            "duration_ms": duration_ms,
-        }
-        if exit_code is not None:
-            fields["exit_code"] = exit_code
-        self.writer.append("phase_completed", phase=full, **fields)
-        return None
-
     # -- manual phases (`phase run`, `phase done`, `phase fail`) -----------
-
-    def _manual(self, phase_id: str) -> tuple[Phase, RunState, PhaseState]:
-        state = self._state()
-        current = self._phase_state(state, phase_id)
-        if current is None or current.state != "running" or current.mode != "manual":
-            raise EngineError(f"phase '{phase_id}' is not a running manual phase")
-        return self.ctx.pipeline.phase(phase_id), state, current
-
-    def _since_started(self, full: str) -> int:
-        started = [
-            e
-            for e in read_events(self.writer.path)
-            if e["event"] == "phase_started" and e["phase"] == full
-        ]
-        begin = datetime.fromisoformat(started[-1]["ts"].replace("Z", "+00:00"))
-        return max(0, int((utc_now() - begin).total_seconds() * 1000))
 
     def manual_run(self, phase_id: str) -> int | None:
         """Run the command of the open manual phase in the foreground.
@@ -385,101 +144,12 @@ class Engine:
         Returns an exit code when the run stops, or None when the phase is
         completed and the caller should `drive()` on.
         """
-        return self._guarded(phase_id, lambda: self._manual_run(phase_id))
-
-    def _manual_run(self, phase_id: str) -> int | None:
-        phase, state, current = self._manual(phase_id)
-        command = phase.with_.get("command")
-        if command is None:
-            raise EngineError(f"phase '{phase_id}' has no command")
-        output = new_output_file(self.ctx.worktree, self.ctx.run_id)
-        env = self._env(phase_id, output, current.inputs)
-        code = self._run_command(command, env, inherit_stdin=True)
-        if code != 0:
-            return self._fail(phase_id, "exit_code", exit_code=code)
-        return self._complete(
-            phase,
-            state,
-            dict(current.inputs),
-            parse_output_file(output),
-            self._since_started(self._full(phase_id)),
-            exit_code=0,
-        )
+        return self._guarded(phase_id, lambda: self.manual.run_command(phase_id))
 
     def manual_done(self, phase_id: str, written: Mapping[str, str]) -> int | None:
         """The human declares the phase done; same verification and commit."""
-        return self._guarded(phase_id, lambda: self._manual_done(phase_id, written))
-
-    def _manual_done(self, phase_id: str, written: Mapping[str, str]) -> int | None:
-        phase, state, current = self._manual(phase_id)
-        return self._complete(
-            phase,
-            state,
-            dict(current.inputs),
-            written,
-            self._since_started(self._full(phase_id)),
-            exit_code=None,
-        )
+        return self._guarded(phase_id, lambda: self.manual.done(phase_id, written))
 
     def manual_fail(self, phase_id: str, reason: str | None) -> int:
         """The human declares the phase failed; the run fails with it."""
-        self._manual(phase_id)
-        return self._fail(phase_id, "manual", reason)
-
-    def _open_manual(
-        self, phase: Phase, full: str, inputs: dict[str, str], state: RunState
-    ) -> int:
-        """Open a human phase: record `phase_started` (manual) and wait."""
-        params: dict[str, str] = {}
-        text = phase.with_.get("instructions")
-        if text is not None:
-            scope = self._scope(state, inputs=inputs)
-            try:
-                params["instructions"] = resolve_text(text, scope)
-            except UnresolvedError as error:
-                return self._fail(phase.id, "missing_input", f"instructions: {error}")
-        fields: dict[str, object] = {}
-        if params:
-            fields["params"] = params
-        self.writer.append(
-            "phase_started",
-            phase=full,
-            actor=phase.actor,
-            mode="manual",
-            iteration=1,
-            inputs=inputs,
-            **fields,
-        )
-        return EXIT_WAITING
-
-    def _route(self, phase_id: str, state: RunState) -> int | None:
-        phase = self.ctx.pipeline.phase(phase_id)
-        decider = phase.route
-        if decider is None:
-            raise EngineError(f"phase '{phase_id}': no route to decide")
-        if self._decider_kind(phase_id, decider) == "human":
-            return self._wait(state, phase_id, "route", decider.by)
-        if decider.check is None:
-            raise EngineError(f"phase '{phase_id}': a machine route needs a check")
-        existing = self._phase_state(state, phase_id)
-        inputs = existing.inputs if existing else {}
-        code, written = self._run_check(phase_id, decider.check, inputs)
-        if code != 0:
-            detail = f"route check exited with code {code}"
-            return self._fail(phase_id, "check_failed", detail, exit_code=code)
-        children = self.ctx.pipeline.children(phase_id)
-        chosen = written.get("next")
-        if chosen not in children:
-            detail = (
-                f"route check wrote next={chosen!r}; "
-                f"expected one of: {', '.join(children)}"
-            )
-            return self._fail(phase_id, "invalid_decision", detail)
-        self.writer.append(
-            "decision",
-            phase=self._full(phase_id),
-            kind="route",
-            by=decider.by,
-            value=chosen,
-        )
-        return None
+        return self.manual.fail(phase_id, reason)

@@ -1,6 +1,7 @@
 """Launch user commands with `bash -c` in their own process group."""
 
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -12,6 +13,21 @@ from lasagna_cli.shell import host_bash, shell_env
 
 class Interrupted(Exception):
     """The user pressed Ctrl+C while a command was running."""
+
+
+class TimedOut(Exception):
+    """A command ran past its timeout and its process tree was killed."""
+
+
+_DURATION = re.compile(r"[0-9]+[smh]")
+_UNITS = {"s": 1, "m": 60, "h": 3600}
+
+
+def parse_duration(text: str) -> float:
+    """Seconds for `30s`, `10m` or `2h`; `ValueError` for anything else."""
+    if not _DURATION.fullmatch(text):
+        raise ValueError(f"invalid duration {text!r}; expected e.g. 30s, 10m, 2h")
+    return int(text[:-1]) * _UNITS[text[-1]]
 
 
 def build_env(
@@ -78,12 +94,14 @@ def run_shell(
     env: Mapping[str, str],
     inherit_stdin: bool = False,
     bash_setting: str = "auto",
+    timeout: float | None = None,
     _wait: Callable[[subprocess.Popen], int] | None = None,
 ) -> int:
     """Run a command to its end and return its exit code.
 
-    Ctrl+C kills the whole process tree and raises `Interrupted`. `_wait`
-    replaces `Popen.wait` and exists only for tests.
+    Ctrl+C kills the whole process tree and raises `Interrupted`. When
+    `timeout` (seconds) expires the tree is killed and `TimedOut` is raised.
+    `_wait` replaces `Popen.wait` and exists only for tests.
     """
     proc = start(
         command,
@@ -92,9 +110,13 @@ def run_shell(
         inherit_stdin=inherit_stdin,
         bash_setting=bash_setting,
     )
-    wait = _wait or (lambda p: p.wait())
+    wait = _wait or (lambda p: p.wait(timeout=timeout))
     try:
         return wait(proc)
+    except subprocess.TimeoutExpired:
+        kill_tree(proc.pid)
+        proc.wait()
+        raise TimedOut from None
     except KeyboardInterrupt:
         kill_tree(proc.pid)
         proc.wait()

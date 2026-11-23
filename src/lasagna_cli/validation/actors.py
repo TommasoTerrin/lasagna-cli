@@ -22,7 +22,8 @@ def _phase(project: Project, pipeline: Pipeline, phase: Phase) -> list[Issue]:
 
     actor = project.actors.get(phase.actor) if phase.actor else None
     if actor is not None:
-        _check_with(actor, phase, add)
+        for field, message in check_with(actor, phase):
+            add(field, message)
         if phase.interactive and not (
             actor.commands is not None and actor.commands.run_interactive
         ):
@@ -44,28 +45,43 @@ def _phase(project: Project, pipeline: Pipeline, phase: Phase) -> list[Issue]:
     return issues
 
 
-def _check_with(actor: Actor, phase: Phase, add) -> None:
+def check_with(
+    actor: Actor, phase: Phase, *, defaults_satisfy: bool = False
+) -> list[tuple[str, str]]:
+    """(field, message) for every `with` key the actor refuses or still needs.
+
+    With `defaults_satisfy`, a required param that has a default may be omitted
+    (the rule of `--bind`); validation of pipelines keeps the strict reading.
+    """
+    found: list[tuple[str, str]] = []
     keys = phase.with_
     if actor.type == "machine":
         if "command" not in keys:
-            add("with.command", "required for a machine actor")
+            found.append(("with.command", "required for a machine actor"))
         for key in keys:
             if key != "command":
-                add(f"with.{key}", "not allowed for a machine actor")
+                found.append((f"with.{key}", "not allowed for a machine actor"))
     elif actor.type == "human":
         for key in keys:
             if key not in ("instructions", "command"):
-                add(f"with.{key}", "not allowed for a human actor")
+                found.append((f"with.{key}", "not allowed for a human actor"))
     else:
         for key in keys:
             if key not in actor.params:
-                add(f"with.{key}", f"agent '{actor.name}' has no param '{key}'")
-        for name, param in actor.params.items():
-            if param.required and name not in keys:
-                add(
-                    "with",
-                    f"missing required param '{name}' for agent '{actor.name}'",
+                found.append(
+                    (f"with.{key}", f"agent '{actor.name}' has no param '{key}'")
                 )
+        for name, param in actor.params.items():
+            if not param.required or name in keys:
+                continue
+            if not (defaults_satisfy and param.default is not None):
+                found.append(
+                    (
+                        "with",
+                        f"missing required param '{name}' for agent '{actor.name}'",
+                    )
+                )
+    return found
 
 
 def _check_sub_pipeline(child: Pipeline, phase: Phase, add) -> None:

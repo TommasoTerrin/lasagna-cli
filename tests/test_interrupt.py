@@ -5,6 +5,7 @@ from conftest import drive_run, git, write_pipeline
 from typer.testing import CliRunner
 
 from lasagna_cli import engine as engine_module
+from lasagna_cli import phases as phases_module
 from lasagna_cli.cli import app
 from lasagna_cli.eventlog import EventWriter, read_events
 from lasagna_cli.locking import FileLock
@@ -53,7 +54,7 @@ def test_interrupt_during_the_commit(
     committed_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     setup(committed_project, machine("a", "echo a > a.txt"), machine("b", "true", "a"))
-    monkeypatch.setattr(engine_module, "commit_all", raise_interrupt)
+    monkeypatch.setattr(phases_module, "commit_all", raise_interrupt)
     result = drive_run(committed_project, "p")
     assert_closed(result, phase="a")
     assert result.kinds() == [
@@ -88,7 +89,7 @@ def test_interrupt_while_creating_the_output_file(
     committed_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     setup(committed_project, machine("a"))
-    monkeypatch.setattr(engine_module, "new_output_file", raise_interrupt)
+    monkeypatch.setattr(phases_module, "new_output_file", raise_interrupt)
     assert_closed(drive_run(committed_project, "p"), phase="a")
 
 
@@ -100,7 +101,7 @@ def test_interrupt_while_resolving_inputs(
         machine("a", inputs={"x": "${{ pipeline.inputs.t }}"}),
         inputs={"t": {"required": True}},
     )
-    monkeypatch.setattr(engine_module, "resolve_text", raise_interrupt)
+    monkeypatch.setattr(phases_module, "resolve_text", raise_interrupt)
     result = drive_run(committed_project, "p", inputs={"t": "v"})
     assert_closed(result, phase="a")
     assert "phase_started" not in result.kinds()
@@ -155,7 +156,7 @@ def test_interrupt_inside_a_write_leaves_a_valid_log(
             handle.write(b'{"v": 1, "seq": 99, "ts"')
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(engine_module, "commit_all", half_written)
+    monkeypatch.setattr(phases_module, "commit_all", half_written)
     result = drive_run(committed_project, "p")
     assert_closed(result, phase="a")
 
@@ -164,7 +165,7 @@ def test_start_exits_130_when_interrupted_and_releases_the_lock(
     committed_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     setup(committed_project, machine("a", "echo a > a.txt"))
-    monkeypatch.setattr(engine_module, "commit_all", raise_interrupt)
+    monkeypatch.setattr(phases_module, "commit_all", raise_interrupt)
     monkeypatch.chdir(committed_project)
     result = CliRunner().invoke(app, ["start", "p"])
     assert result.exit_code == 130, result.output
@@ -199,7 +200,7 @@ def test_phase_done_interrupted_exits_130(
     )
     monkeypatch.chdir(committed_project)
     assert CliRunner().invoke(app, ["start", "p"]).exit_code == 3
-    monkeypatch.setattr(engine_module, "commit_all", raise_interrupt)
+    monkeypatch.setattr(phases_module, "commit_all", raise_interrupt)
     result = CliRunner().invoke(app, ["phase", "done"])
     assert result.exit_code == 130, result.output
     events = read_events(run_log_path(committed_project, "p_01"))

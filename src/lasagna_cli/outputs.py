@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+from lasagna_cli.harness import dashed_name
 from lasagna_cli.model import Output
 from lasagna_cli.resolve import UnresolvedError
 
@@ -21,6 +22,28 @@ def new_output_file(worktree: Path, run_id: str) -> Path:
             counter += 1
             continue
         return path
+
+
+def iteration_output_path(
+    worktree: Path, run_id: str, full_phase: str, iteration: int
+) -> Path:
+    """Where `$LASAGNA_OUTPUT` of one iteration of a looping phase lives.
+
+    The phase name is the full one with `/` replaced by `-`, so no subfolder is
+    created: `<run-id>.bug-fix-tdd-red.2.out`.
+    """
+    name = f"{run_id}.{dashed_name(full_phase)}.{iteration}.out"
+    return worktree / ".lasagna" / "runs" / name
+
+
+def iteration_output_file(
+    worktree: Path, run_id: str, full_phase: str, iteration: int
+) -> Path:
+    """The file of `iteration_output_path`, created empty (truncated if it exists)."""
+    path = iteration_output_path(worktree, run_id, full_phase, iteration)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"")
+    return path
 
 
 def parse_output_file(path: Path) -> dict[str, str]:
