@@ -131,6 +131,7 @@ class RunEnv:
         phase_id: str,
         output: Path,
         inputs: Mapping[str, str] | None = None,
+        extra: Mapping[str, str] | None = None,
     ) -> dict[str, str]:
         ctx = self.ctx
         variables = {
@@ -144,6 +145,7 @@ class RunEnv:
         }
         for name, value in (inputs or {}).items():
             variables[f"LASAGNA_INPUT_{name.upper().replace('-', '_')}"] = value
+        variables.update(extra or {})
         return build_env(
             os.environ,
             variables,
@@ -152,14 +154,23 @@ class RunEnv:
         )
 
     def run_command(
-        self, command: str, env: Mapping[str, str], *, inherit_stdin: bool = False
+        self,
+        command: str,
+        env: Mapping[str, str],
+        *,
+        inherit_stdin: bool = False,
+        timeout: float | None = None,
     ) -> int:
+        options: dict[str, object] = {}
+        if timeout is not None:
+            options["timeout"] = timeout
         return self.runner(
             command,
             cwd=self.ctx.worktree,
             env=env,
             inherit_stdin=inherit_stdin,
             bash_setting=self.ctx.project.config.shell,
+            **options,
         )
 
     def run_check(

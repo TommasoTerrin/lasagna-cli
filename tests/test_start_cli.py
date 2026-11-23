@@ -138,11 +138,11 @@ def test_fixed_but_uncommitted_pipeline_is_refused_as_dirty(
 
 def test_unsupported_feature_is_refused(committed_project: Path, monkeypatch) -> None:
     data = base_pipeline("p")
-    data["phases"][0]["timeout"] = "5s"
+    data["phases"][0]["trigger"] = {"by": "claude", "prompt": "go"}
     write_pipeline(committed_project, data)
     commit(committed_project)
     result = start(monkeypatch, committed_project, "p")
-    refused(result, "phase 'a' of pipeline 'p': timeout is not supported yet")
+    refused(result, "phase 'a' of pipeline 'p': agent deciders are not supported yet")
 
 
 def test_unknown_pipeline(ready: Path, monkeypatch) -> None:

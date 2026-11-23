@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,6 +65,44 @@ def write_pipeline(
         _touch(folder / "harness" / "skills" / skill / "SKILL.md")
     for server in mcp:
         _touch(folder / "harness" / "mcp" / f"{server}.json", "{}\n")
+    return path
+
+
+FAKE_AGENT = Path(__file__).parent / "fakes" / "fake_agent.py"
+
+
+def agent_command() -> str:
+    """Bash command that runs the scripted fake agent (see `fakes/fake_agent.py`)."""
+    from lasagna_cli.shell import to_bash_path
+
+    return f'"{to_bash_path(Path(sys.executable))}" "{to_bash_path(FAKE_AGENT)}"'
+
+
+def write_agent_actor(
+    root: Path,
+    name: str,
+    *,
+    params: dict | None = None,
+    models: dict[str, str] | None = None,
+    **commands,
+) -> Path:
+    """Write an agent actor whose commands default to the fake agent.
+
+    `commands` may hold `check` (a list), `inject`, `run`, `run_interactive`
+    and `cleanup`; `run` defaults to the fake agent.
+    """
+    data: dict = {
+        "type": "agent",
+        "name": name,
+        "params": params or {"prompt": {"required": True}},
+        "commands": {"run": agent_command(), **commands},
+    }
+    if models:
+        data["models"] = models
+    path = root / ".lasagna" / "actors" / f"{name}.yaml"
+    path.write_text(
+        yaml.safe_dump(data, sort_keys=False), encoding="utf-8", newline="\n"
+    )
     return path
 
 

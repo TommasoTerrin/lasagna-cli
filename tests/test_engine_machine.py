@@ -508,10 +508,6 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
     ("phase", "text"),
     [
         (
-            {"id": "x", "actor": "claude", "with": {"prompt": "hi"}},
-            "agent actors are not supported yet",
-        ),
-        (
             machine(
                 "x",
                 "true",
@@ -519,7 +515,6 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
             ),
             "loop is not supported yet",
         ),
-        (machine("x", "true", timeout="5s"), "timeout is not supported yet"),
         (
             {"id": "x", "actor": "claude", "interactive": True},
             "interactive phases are not supported yet",
@@ -541,7 +536,10 @@ def test_unsupported_features_are_listed(project: Path, phase: dict, text: str) 
 def test_unsupported_features_follow_sub_pipelines(project: Path) -> None:
     write_pipeline(
         project,
-        {"name": "inner", "phases": [{"id": "z", "actor": "claude"}]},
+        {
+            "name": "inner",
+            "phases": [{"id": "z", "actor": "claude", "interactive": True}],
+        },
     )
     messages = features(project, {"id": "x", "pipeline": "inner"})
     assert any("phase 'x' of pipeline 'p'" in m for m in messages)

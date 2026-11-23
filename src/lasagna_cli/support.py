@@ -23,16 +23,11 @@ def _phase_messages(project: Project, phase: Phase) -> list[str]:
     messages: list[str] = []
     if phase.pipeline is not None:
         messages.append("sub-pipelines are not supported yet")
-    actor = project.actors.get(phase.actor) if phase.actor else None
-    if actor is not None and actor.type == "agent":
-        messages.append("agent actors are not supported yet")
     if phase.interactive:
         messages.append("interactive phases are not supported yet")
     if phase.loop is not None:
         messages.append("loop is not supported yet")
         messages.extend(_decider_messages(project, phase.loop.until))
-    if phase.timeout is not None:
-        messages.append("timeout is not supported yet")
     messages.extend(_decider_messages(project, phase.trigger))
     messages.extend(_decider_messages(project, phase.route))
     return list(dict.fromkeys(messages))
