@@ -1,5 +1,7 @@
 """Triggers and routes: who decides, and the waits for humans."""
 
+from collections.abc import Mapping
+
 from lasagna_cli.model import Phase
 from lasagna_cli.runenv import EngineError, RunEnv
 from lasagna_cli.state import PhaseState, RunState
@@ -40,6 +42,39 @@ class Deciders:
             "decision",
             phase=run.full(phase.id),
             kind="trigger",
+            by=decider.by,
+            value=value,
+        )
+        return value, None
+
+    def loop_until(
+        self,
+        phase: Phase,
+        iteration: int,
+        inputs: Mapping[str, str],
+        state: RunState,
+    ) -> tuple[str, int | None]:
+        """("stop" | "continue", None), or ("", exit code) when the run stops."""
+        run = self.run
+        assert phase.loop is not None
+        decider = phase.loop.until
+        if run.decider_kind(phase.id, decider) == "human":
+            return "", run.wait(run.state(), phase.id, "loop", decider.by)
+        if decider.check is None:
+            raise EngineError(f"phase '{phase.id}': a machine until needs a check")
+        code, written = run.run_check(
+            phase.id, decider.check, inputs, {"LASAGNA_ITERATION": str(iteration)}
+        )
+        value = written.get("decision")
+        if value is None:
+            value = "stop" if code == 0 else "continue"
+        elif value not in ("stop", "continue"):
+            detail = f"until check wrote decision={value!r}; expected stop or continue"
+            return "", run.fail(phase.id, "invalid_decision", detail)
+        run.writer.append(
+            "decision",
+            phase=run.full(phase.id),
+            kind="loop",
             by=decider.by,
             value=value,
         )

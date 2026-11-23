@@ -10,9 +10,10 @@ import os
 import sys
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
-from lasagna_cli.eventlog import EventWriter, read_events
+from lasagna_cli.eventlog import EventWriter, read_events, utc_now
 from lasagna_cli.gitops import local_git_env_vars
 from lasagna_cli.model import Actor, Decider, Phase, Pipeline, Project
 from lasagna_cli.outputs import new_output_file, parse_output_file
@@ -153,6 +154,18 @@ class RunEnv:
             drop=local_git_env_vars(),
         )
 
+    def since_started(self, full: str, *, first: bool = False) -> int:
+        """Milliseconds since the phase started (its first start when `first`)."""
+        started = [
+            e
+            for e in read_events(self.writer.path)
+            if e["event"] == "phase_started" and e["phase"] == full
+        ]
+        begin = datetime.fromisoformat(
+            started[0 if first else -1]["ts"].replace("Z", "+00:00")
+        )
+        return max(0, int((utc_now() - begin).total_seconds() * 1000))
+
     def run_command(
         self,
         command: str,
@@ -178,7 +191,8 @@ class RunEnv:
         phase_id: str,
         check: str,
         inputs: Mapping[str, str] | None = None,
+        extra: Mapping[str, str] | None = None,
     ) -> tuple[int, dict[str, str]]:
         output = new_output_file(self.ctx.worktree, self.ctx.run_id)
-        code = self.run_command(check, self.env(phase_id, output, inputs))
+        code = self.run_command(check, self.env(phase_id, output, inputs, extra))
         return code, parse_output_file(output)

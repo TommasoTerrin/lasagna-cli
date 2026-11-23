@@ -1,9 +1,7 @@
 """Manual phases: `phase run`, `phase done`, `phase fail` on the open phase."""
 
 from collections.abc import Mapping
-from datetime import datetime
 
-from lasagna_cli.eventlog import read_events, utc_now
 from lasagna_cli.model import Phase
 from lasagna_cli.outputs import new_output_file, parse_output_file
 from lasagna_cli.phases import PhaseExecutor
@@ -24,15 +22,6 @@ class ManualPhases:
         if current is None or current.state != "running" or current.mode != "manual":
             raise EngineError(f"phase '{phase_id}' is not a running manual phase")
         return self.run.ctx.pipeline.phase(phase_id), state, current
-
-    def _since_started(self, full: str) -> int:
-        started = [
-            e
-            for e in read_events(self.run.writer.path)
-            if e["event"] == "phase_started" and e["phase"] == full
-        ]
-        begin = datetime.fromisoformat(started[-1]["ts"].replace("Z", "+00:00"))
-        return max(0, int((utc_now() - begin).total_seconds() * 1000))
 
     def run_command(self, phase_id: str) -> int | None:
         """Run the command of the open manual phase in the foreground.
@@ -55,7 +44,7 @@ class ManualPhases:
             state,
             dict(current.inputs),
             parse_output_file(output),
-            self._since_started(run.full(phase_id)),
+            run.since_started(run.full(phase_id)),
             exit_code=0,
         )
 
@@ -67,7 +56,7 @@ class ManualPhases:
             state,
             dict(current.inputs),
             written,
-            self._since_started(self.run.full(phase_id)),
+            self.run.since_started(self.run.full(phase_id)),
             exit_code=None,
         )
 

@@ -386,6 +386,8 @@ def _report(ctx: RunContext, code: int) -> None:
             phase = wait.phase.removeprefix(f"{ctx.pipeline.name}/")
             if wait.for_ == "trigger":
                 options = "start|skip"
+            elif wait.for_ == "loop":
+                options = "stop|continue"
             else:
                 options = "|".join(ctx.pipeline.children(phase))
             typer.echo(
@@ -414,7 +416,8 @@ def decide(
         list[str],
         typer.Argument(
             help="[RUN] [PHASE] VALUE: start or skip for a trigger, a child phase "
-            "for a route. RUN and PHASE can be omitted when only one is waiting."
+            "for a route, stop or continue for a loop. RUN and PHASE can be "
+            "omitted when only one is waiting."
         ),
     ],
 ) -> None:
@@ -449,7 +452,7 @@ def _decide(root: Path, session: Session, phase_arg: str | None, value: str) -> 
     elif wait.for_ == "route":
         valid = ctx.pipeline.children(phase_id)
     else:
-        raise _fail("loop decisions are not supported yet")
+        valid = ["stop", "continue"]
     if value not in valid:
         raise _fail(
             f"invalid value '{value}' for the {wait.for_} of '{phase_id}'; "

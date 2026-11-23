@@ -508,12 +508,15 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
     ("phase", "text"),
     [
         (
-            machine(
-                "x",
-                "true",
-                loop={"max_iterations": 2, "until": {"by": "machine", "check": "true"}},
-            ),
-            "loop is not supported yet",
+            {
+                "id": "x",
+                "actor": "human",
+                "loop": {
+                    "max_iterations": 2,
+                    "until": {"by": "machine", "check": "true"},
+                },
+            },
+            "loop on a phase run by a human is not supported yet",
         ),
         (
             {"id": "x", "actor": "claude", "interactive": True},

@@ -26,7 +26,9 @@ def _phase_messages(project: Project, phase: Phase) -> list[str]:
     if phase.interactive:
         messages.append("interactive phases are not supported yet")
     if phase.loop is not None:
-        messages.append("loop is not supported yet")
+        actor = project.actors.get(phase.actor) if phase.actor else None
+        if actor is not None and actor.type == "human":
+            messages.append("loop on a phase run by a human is not supported yet")
         messages.extend(_decider_messages(project, phase.loop.until))
     messages.extend(_decider_messages(project, phase.trigger))
     messages.extend(_decider_messages(project, phase.route))
