@@ -1,5 +1,4 @@
 from lasagna_cli.agentcycle import CycleResult, run_agent_cycle
-
 from lasagna_cli.model import Actor, AgentCommands
 from lasagna_cli.runner import TimedOut
 
