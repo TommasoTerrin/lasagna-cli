@@ -4,9 +4,7 @@ from pathlib import Path
 
 import pytest
 from conftest import git, write_pipeline
-from typer.testing import CliRunner
-
-from lasagna_cli.cli import app
+from conftest import invoke as lasagna
 
 FIXTURE_RUNS = Path(__file__).parent / "fixtures" / "runs"
 
@@ -27,7 +25,7 @@ def commit_pipeline(root: Path, *phases: dict) -> None:
 
 def invoke(monkeypatch: pytest.MonkeyPatch, root: Path, *args: str):
     monkeypatch.chdir(root)
-    return CliRunner().invoke(app, list(args))
+    return lasagna(*args)
 
 
 def rows(output: str) -> list[tuple[str, str]]:

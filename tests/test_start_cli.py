@@ -1,14 +1,11 @@
-import re
 import stat
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from conftest import base_pipeline, git, machine_pipeline, write_pipeline
-from typer.testing import CliRunner
+from conftest import base_pipeline, git, invoke, machine_pipeline, write_pipeline
 
-from lasagna_cli.cli import app
 from lasagna_cli.eventlog import read_events
 from lasagna_cli.locking import FileLock
 from lasagna_cli.runs import run_lock_path, run_log_path
@@ -22,7 +19,7 @@ def commit(root: Path, message: str = "pipeline") -> None:
 
 def start(monkeypatch: pytest.MonkeyPatch, cwd: Path, *args: str):
     monkeypatch.chdir(cwd)
-    return CliRunner().invoke(app, ["start", *args])
+    return invoke("start", *args)
 
 
 @pytest.fixture
@@ -43,7 +40,7 @@ def test_start_runs_a_pipeline_and_creates_worktree_and_branch(
     result = start(monkeypatch, ready, "p")
     assert result.exit_code == 0, result.output
 
-    status = CliRunner().invoke(app, ["status", "p_01"])
+    status = invoke("status", "p_01")
     assert status.exit_code == 0
     assert "done" in status.output
 
@@ -302,8 +299,8 @@ def test_start_launched_from_a_git_hook(ready: Path) -> None:
 
 
 def test_start_help_documents_options() -> None:
-    result = CliRunner().invoke(app, ["start", "--help"])
-    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    result = invoke("start", "--help")
+    plain = result.output
     for option in ("--id", "--input", "--as", "--bind"):
         assert option in plain
     assert "Name of the pipeline to run" in plain

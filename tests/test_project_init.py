@@ -1,8 +1,6 @@
 import pytest
-from conftest import git
-from typer.testing import CliRunner
+from conftest import git, invoke
 
-from lasagna_cli.cli import app
 from lasagna_cli.project import NotAGitRepoError, find_repo_root, templates_dir
 from lasagna_cli.scaffold import init_project
 
@@ -48,22 +46,22 @@ def test_init_refuses_existing_dir(repo):
 
 def test_init_cli_twice(repo, monkeypatch):
     monkeypatch.chdir(repo)
-    first = CliRunner().invoke(app, ["init"])
+    first = invoke("init")
     assert first.exit_code == 0 and "Created .lasagna/" in first.output
-    result = CliRunner().invoke(app, ["init"])
+    result = invoke("init")
     assert result.exit_code == 2 and ".lasagna/ already exists" in result.output
 
 
 def test_init_cli_outside_git(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(app, ["init"])
+    result = invoke("init")
     assert result.exit_code == 2 and "not inside a git repository" in result.output
     assert "run git init first" in result.output
 
 
 def test_other_commands_outside_git_keep_the_plain_message(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(app, ["status"])
+    result = invoke("status")
     assert result.exit_code == 2
     assert "not inside a git repository" in result.output
     assert "git init" not in result.output

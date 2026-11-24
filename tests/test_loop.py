@@ -2,10 +2,8 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import drive_run, git, write_pipeline
-from typer.testing import CliRunner
+from conftest import drive_run, git, invoke, write_pipeline
 
-from lasagna_cli.cli import app
 from lasagna_cli.eventlog import read_events
 from lasagna_cli.outputs import iteration_output_file, iteration_output_path
 from lasagna_cli.runs import run_log_path
@@ -51,7 +49,7 @@ def of_kind(events: list[dict], kind: str) -> list[dict]:
 
 def run(monkeypatch: pytest.MonkeyPatch, root: Path, *args: str):
     monkeypatch.chdir(root)
-    return CliRunner().invoke(app, list(args))
+    return invoke(*args)
 
 
 def events(root: Path, run_id: str = "p_01") -> list[dict]:

@@ -1,4 +1,4 @@
-from typer.testing import CliRunner
+from conftest import invoke
 
 from lasagna_cli.cli import app
 
@@ -8,13 +8,13 @@ def app_command_names() -> list[str]:
 
 
 def test_version_prints_name_and_version():
-    result = CliRunner().invoke(app, ["--version"])
+    result = invoke("--version")
     assert result.exit_code == 0
     assert result.output == "lasagna 0.1.0\n"
 
 
 def test_help_lists_commands():
-    result = CliRunner().invoke(app, ["--help"])
+    result = invoke("--help")
     assert result.exit_code == 0
     for name in app_command_names():
         assert name in result.output

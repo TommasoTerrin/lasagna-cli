@@ -1,10 +1,8 @@
 from pathlib import Path
 
 import pytest
-from conftest import git, write_pipeline
-from typer.testing import CliRunner
+from conftest import git, invoke, write_pipeline
 
-from lasagna_cli.cli import app
 from lasagna_cli.eventlog import read_events
 from lasagna_cli.runs import run_log_path
 from lasagna_cli.state import derive_state
@@ -34,12 +32,8 @@ def setup(root: Path, monkeypatch, *phases: dict) -> None:
     git("add", "-A", cwd=root)
     git("commit", "-m", "p", cwd=root)
     monkeypatch.chdir(root)
-    result = CliRunner().invoke(app, ["start", "p"])
+    result = invoke("start", "p")
     assert result.exit_code == 3, result.output
-
-
-def invoke(*args: str):
-    return CliRunner().invoke(app, list(args))
 
 
 def events(root: Path) -> list[dict]:

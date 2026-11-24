@@ -508,17 +508,6 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
     ("phase", "text"),
     [
         (
-            {
-                "id": "x",
-                "actor": "human",
-                "loop": {
-                    "max_iterations": 2,
-                    "until": {"by": "machine", "check": "true"},
-                },
-            },
-            "loop on a phase run by a human is not supported yet",
-        ),
-        (
             {"id": "x", "actor": "claude", "interactive": True},
             "interactive phases are not supported yet",
         ),
@@ -534,6 +523,15 @@ def test_unsupported_features_are_listed(project: Path, phase: dict, text: str) 
     assert any(
         m.startswith("phase 'x' of pipeline 'p': ") and text in m for m in messages
     ), messages
+
+
+def test_loop_on_a_human_phase_is_left_to_validation(project: Path) -> None:
+    phase = {
+        "id": "x",
+        "actor": "human",
+        "loop": {"max_iterations": 2, "until": {"by": "machine", "check": "true"}},
+    }
+    assert features(project, phase) == []
 
 
 def test_unsupported_features_follow_sub_pipelines(project: Path) -> None:

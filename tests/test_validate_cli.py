@@ -1,9 +1,8 @@
 import shutil
 from pathlib import Path
 
-from typer.testing import CliRunner
+from conftest import invoke
 
-from lasagna_cli.cli import app
 from lasagna_cli.schemas import primitive_copy_warnings
 
 ROOT = Path(__file__).parent.parent
@@ -20,7 +19,7 @@ def install_all(project: Path) -> None:
 
 def run_validate(monkeypatch, cwd: Path):
     monkeypatch.chdir(cwd)
-    return CliRunner().invoke(app, ["validate"])
+    return invoke("validate")
 
 
 def test_fixtures_and_example_are_valid(project, monkeypatch):
@@ -98,6 +97,6 @@ def test_outside_git(tmp_path, monkeypatch):
 
 
 def test_validate_has_help_text():
-    result = CliRunner().invoke(app, ["validate", "--help"])
+    result = invoke("validate", "--help")
     assert result.exit_code == 0
     assert "Check" in result.output
