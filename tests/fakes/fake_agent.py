@@ -12,6 +12,10 @@ runs them in order, in the current directory (the worktree):
 - {"exit": 3}                        exit with that code at once
 - {"log": "path"}                    append a JSON line with every LASAGNA_*
                                      variable and argv to a file
+- {"probe": "path"}                  append a JSON line saying whether the file
+                                     named by the whole prompt exists, and its size
+- {"prompt_file": "text"}            append text to the file named by the whole
+                                     prompt (an agent using ${{ lasagna.output }})
 
 With no script the agent only exits 0.
 """
@@ -58,6 +62,12 @@ def main() -> int:
                 action["log"],
                 json.dumps({"env": variables, "argv": sys.argv[1:]}) + "\n",
             )
+        elif "probe" in action:
+            target = Path(os.environ["LASAGNA_PARAM_PROMPT"])
+            size = target.stat().st_size if target.is_file() else None
+            append(action["probe"], json.dumps({"size": size}) + "\n")
+        elif "prompt_file" in action:
+            append(os.environ["LASAGNA_PARAM_PROMPT"], action["prompt_file"])
         elif "exit" in action:
             return int(action["exit"])
     return 0

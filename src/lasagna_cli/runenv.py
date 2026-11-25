@@ -88,11 +88,22 @@ class RunEnv:
             if p.state == "done"
         }
 
-    def scope(self, state: RunState, **parts: dict[str, str] | None) -> Scope:
+    def scope(
+        self,
+        state: RunState,
+        *,
+        inputs: dict[str, str] | None = None,
+        outputs: dict[str, str] | None = None,
+        main_skill: str | None = None,
+        output: str | None = None,
+    ) -> Scope:
         return Scope(
             pipeline_inputs=self.ctx.inputs,
             phase_outputs=self.done_outputs(state),
-            **parts,
+            inputs=inputs,
+            outputs=outputs,
+            main_skill=main_skill,
+            output=output,
         )
 
     def fail(

@@ -11,6 +11,7 @@ def scope(**over) -> Scope:
         "inputs": {"spec-dir": "specs/x"},
         "outputs": {"result": "ok"},
         "main_skill": ".lasagna/pipelines/p/harness/phases/b/SKILL.md",
+        "output": ".lasagna/runs/p_01.p-a.1.out",
     }
     values.update(over)
     return Scope(**values)
@@ -23,6 +24,7 @@ def test_each_reference_kind() -> None:
     assert resolve_text("${{ inputs.spec-dir }}", s) == "specs/x"
     assert resolve_text("${{ outputs.result }}", s) == "ok"
     assert resolve_text("${{ harness.main_skill }}", s).endswith("SKILL.md")
+    assert resolve_text("${{ lasagna.output }}", s) == ".lasagna/runs/p_01.p-a.1.out"
 
 
 def test_several_expressions_in_one_string() -> None:
@@ -57,6 +59,11 @@ def test_text_without_expressions_is_unchanged() -> None:
             {"main_skill": None},
             Ref("harness.main_skill", None, None),
         ),
+        (
+            "${{ lasagna.output }}",
+            {"output": None},
+            Ref("lasagna.output", None, None),
+        ),
     ],
 )
 def test_unresolved_references_raise_with_the_ref(text, over, ref) -> None:
@@ -87,3 +94,8 @@ def test_render_raises_expression_error_like_find_refs() -> None:
         render("${{ nonsense }}", lambda ref: "")
     with pytest.raises(ExpressionError):
         render("${{ inputs.x", lambda ref: "")
+
+
+def test_unresolved_lasagna_output_names_the_expression() -> None:
+    with pytest.raises(UnresolvedError, match="cannot resolve lasagna.output"):
+        resolve_text("${{ lasagna.output }}", scope(output=None))

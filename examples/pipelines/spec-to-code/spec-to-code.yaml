@@ -17,6 +17,7 @@ phases:
       model: large
       prompt: >-
         Follow the skill at ${{ harness.main_skill }}.
+        The output file is ${{ lasagna.output }}.
     outputs:
       spec-dir:
         type: value

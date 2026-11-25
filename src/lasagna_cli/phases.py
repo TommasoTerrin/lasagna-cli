@@ -190,9 +190,11 @@ class PhaseExecutor:
             "inputs": inputs,
         }
         timeout = self._timeout(phase)
+        output = self._output_file(phase, iteration)
         if actor.type == "agent":
             main = main_skill_path(ctx.pipeline, phase) if phase.main_skill else None
-            scope = run.scope(state, inputs=inputs, main_skill=main)
+            relative = output.relative_to(ctx.worktree).as_posix()
+            scope = run.scope(state, inputs=inputs, main_skill=main, output=relative)
             try:
                 params = resolve_params(actor, phase.with_, scope)
             except UnresolvedError as error:
@@ -206,7 +208,6 @@ class PhaseExecutor:
                 **extra,
             }
         run.writer.append("phase_started", **started)
-        output = self._output_file(phase, iteration)
         env = run.env(phase.id, output, inputs, extra)
         clock = time.monotonic()
 

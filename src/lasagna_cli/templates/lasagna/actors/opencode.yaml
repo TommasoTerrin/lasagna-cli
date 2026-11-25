@@ -8,6 +8,14 @@ params:
   model:
     required: false
     description: An alias from `models` or a model id in provider/model format.
+  permission-mode:
+    required: false
+    default: acceptEdits
+    description: >-
+      The same values as Claude. acceptEdits: --standalone with a permission
+      config that allows edits and asks for commands (refused in a headless
+      run); bypassPermissions: --auto; default: no flag. Phases that must run
+      commands need bypassPermissions or a permission config of your own.
 
 # Replace with your providers' ids: `opencode models` lists them.
 models:
@@ -15,8 +23,31 @@ models:
   medium: "<provider>/<medium-model>"
   large: "<provider>/<large-model>"
 
+# Every command translates LASAGNA_PARAM_PERMISSION_MODE into flags the same
+# way: the check refuses an unknown value.
 commands:
   check:
     - command -v opencode
-  run: opencode run ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} "$LASAGNA_PARAM_PROMPT"
-  run_interactive: opencode ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} --prompt "$LASAGNA_PARAM_PROMPT"
+    - |-
+      case "$LASAGNA_PARAM_PERMISSION_MODE" in
+        acceptEdits|bypassPermissions|default) ;;
+        *) echo "unknown permission-mode: $LASAGNA_PARAM_PERMISSION_MODE" >&2; exit 1 ;;
+      esac
+  run: |-
+    case "$LASAGNA_PARAM_PERMISSION_MODE" in
+      acceptEdits)
+        export OPENCODE_CONFIG_CONTENT='{"permission":{"edit":"allow","bash":"ask"}}'
+        set -- --standalone ;;
+      bypassPermissions) set -- --auto ;;
+      *) set -- ;;
+    esac
+    opencode run "$@" ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} "$LASAGNA_PARAM_PROMPT"
+  run_interactive: |-
+    case "$LASAGNA_PARAM_PERMISSION_MODE" in
+      acceptEdits)
+        export OPENCODE_CONFIG_CONTENT='{"permission":{"edit":"allow","bash":"ask"}}'
+        set -- --standalone ;;
+      bypassPermissions) set -- --auto ;;
+      *) set -- ;;
+    esac
+    opencode "$@" ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} --prompt "$LASAGNA_PARAM_PROMPT"

@@ -54,3 +54,9 @@ def test_has_expression():
 def test_malformed_expressions_raise(text):
     with pytest.raises(ExpressionError):
         find_refs(text)
+
+
+def test_lasagna_output_ref():
+    assert find_refs("write to ${{ lasagna.output }}") == [
+        Ref("lasagna.output", None, None)
+    ]

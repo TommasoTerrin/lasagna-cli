@@ -14,6 +14,11 @@ SHELL_MESSAGE = (
     "expressions are not allowed in shell commands; use environment variables"
 )
 
+OUTPUT_MESSAGE = (
+    "lasagna.output is only allowed in the with of an agent phase"
+    " and in the prompt of an agent decision"
+)
+
 BAD_ACTOR = """\
 type: agent
 name: bad
@@ -225,6 +230,64 @@ CASES = {
         "phases[1].with.prompt",
         "requires harness.main_skill: true",
     ),
+    "E9-output-in-inputs": (
+        phase_field(0, "inputs", {"x": "${{ lasagna.output }}"}),
+        PIPE,
+        "phases[0].inputs.x",
+        OUTPUT_MESSAGE,
+    ),
+    "E9-output-in-output-path": (
+        phase_field(
+            0, "outputs", {"f": {"type": "file", "path": "${{ lasagna.output }}"}}
+        ),
+        PIPE,
+        "phases[0].outputs.f.path",
+        OUTPUT_MESSAGE,
+    ),
+    "E9-output-in-human-instructions": (
+        lambda d: d["phases"].__setitem__(
+            0,
+            {
+                "id": "a",
+                "actor": "human",
+                "with": {"instructions": "write ${{ lasagna.output }}"},
+            },
+        ),
+        PIPE,
+        "phases[0].with.instructions",
+        OUTPUT_MESSAGE,
+    ),
+    "E9-output-in-human-decider": (
+        phase_field(
+            1, "trigger", {"by": "human", "instructions": "${{ lasagna.output }}"}
+        ),
+        PIPE,
+        "phases[1].trigger.instructions",
+        OUTPUT_MESSAGE,
+    ),
+    "E9-output-in-machine-decider": (
+        phase_field(
+            0,
+            "loop",
+            {
+                "max_iterations": 2,
+                "until": {
+                    "by": "machine",
+                    "check": "true",
+                    "instructions": "${{ lasagna.output }}",
+                },
+            },
+        ),
+        PIPE,
+        "phases[0].loop.until.instructions",
+        OUTPUT_MESSAGE,
+    ),
+    "E9-output-in-pipeline-outputs": (
+        lambda d: d.update(outputs={"r": "${{ lasagna.output }}"}),
+        PIPE,
+        "outputs.r",
+        OUTPUT_MESSAGE,
+    ),
     "E1-actor-check": (
         None,
         ".lasagna/actors/bad.yaml",
@@ -300,6 +363,23 @@ def test_every_scope_is_valid_where_allowed(project):
     assert check(project) == []
 
 
+def test_lasagna_output_is_valid_for_agents(project):
+    data = base_pipeline()
+    data["phases"][0] = {
+        "id": "a",
+        "actor": "claude",
+        "with": {"prompt": "write to ${{ lasagna.output }}"},
+        "route": {"by": "claude", "prompt": "${{ lasagna.output }}"},
+        "loop": {
+            "max_iterations": 2,
+            "until": {"by": "claude", "prompt": "${{ lasagna.output }}"},
+        },
+    }
+    data["phases"][1]["trigger"] = {"by": "claude", "prompt": "${{ lasagna.output }}"}
+    write_pipeline(project, data)
+    assert check(project) == []
+
+
 def test_sub_pipeline_outputs_come_from_the_child(project):
     child = {
         "name": "q",
@@ -333,3 +413,16 @@ def test_fixtures_and_example_have_no_expression_issues(project):
     example = ROOT / "examples/pipelines/spec-to-code"
     shutil.copytree(example, pipelines / example.name)
     assert check(project) == []
+
+
+def test_fixtures_and_example_name_the_output_file_by_expression():
+    folders = [*(ROOT / "tests/fixtures/pipelines").iterdir()]
+    folders.append(ROOT / "examples/pipelines/spec-to-code")
+    mentions = [
+        path.relative_to(ROOT).as_posix()
+        for folder in folders
+        for path in folder.rglob("*")
+        if path.suffix in (".yaml", ".md")
+        and "LASAGNA_OUTPUT" in path.read_text(encoding="utf-8")
+    ]
+    assert mentions == []

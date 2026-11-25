@@ -19,6 +19,7 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("inputs", re.compile(rf"inputs\.(?P<name>{_NAME})")),
     ("outputs", re.compile(rf"outputs\.(?P<name>{_NAME})")),
     ("harness.main_skill", re.compile(r"harness\.main_skill")),
+    ("lasagna.output", re.compile(r"lasagna\.output")),
 )
 
 
@@ -29,7 +30,12 @@ class ExpressionError(ValueError):
 @dataclass(frozen=True)
 class Ref:
     scope: Literal[
-        "pipeline.inputs", "phases", "inputs", "outputs", "harness.main_skill"
+        "pipeline.inputs",
+        "phases",
+        "inputs",
+        "outputs",
+        "harness.main_skill",
+        "lasagna.output",
     ]
     phase: str | None
     name: str | None
