@@ -79,6 +79,8 @@ Ask before adding a runtime dependency.
   subagent-driven-development, requesting-code-review, receiving-code-review,
   systematic-debugging, dispatching-parallel-agents. If a bug resists, stop and
   explain what you tried.
+- Brainstorming is allowed only for new features not covered by PROTOCOL.md,
+  never to redesign what the protocol already defines.
 - One branch per milestone. Stop at the end of each milestone for review and
   do not start the next one without approval.
 - Small commits with imperative English messages.
