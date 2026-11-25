@@ -68,6 +68,8 @@ Ask before adding a runtime dependency.
   agents: actor files whose commands run a Python script from `tests/fakes/`.
 - Tests touching git use real repositories created in `tmp_path`.
 - Tests must pass on Windows, Linux and macOS.
+- tests/conftest.py puts fake claude and opencode first on PATH for the whole
+  session (they exit with 97). Never remove or bypass this guard.
 
 ## Workflow
 
