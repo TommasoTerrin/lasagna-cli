@@ -29,7 +29,7 @@ def script(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *actions: dict) -> P
     return path
 
 
-def agent_phase(id: str = "a", *needs: str, **extra) -> dict:
+def agent_phase(id: str = "a", /, *needs: str, **extra: object) -> dict:
     phase: dict = {
         "id": id,
         "actor": "fake",

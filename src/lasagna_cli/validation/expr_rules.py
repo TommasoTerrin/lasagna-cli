@@ -39,7 +39,9 @@ def _actor_commands(project: Project) -> list[Issue]:
     for actor in project.actors.values():
         if actor.commands is None:
             continue
-        fields = {f"commands.check[{j}]": c for j, c in enumerate(actor.commands.check)}
+        fields: dict[str, str | None] = {
+            f"commands.check[{j}]": c for j, c in enumerate(actor.commands.check)
+        }
         fields["commands.inject"] = actor.commands.inject
         fields["commands.run"] = actor.commands.run
         fields["commands.run_interactive"] = actor.commands.run_interactive
