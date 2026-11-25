@@ -507,10 +507,6 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
 @pytest.mark.parametrize(
     ("phase", "text"),
     [
-        (
-            {"id": "x", "actor": "claude", "interactive": True},
-            "interactive phases are not supported yet",
-        ),
         ({"id": "x", "pipeline": "other"}, "sub-pipelines are not supported yet"),
         (
             machine("x", "true", trigger={"by": "claude", "prompt": "go"}),
@@ -523,6 +519,10 @@ def test_unsupported_features_are_listed(project: Path, phase: dict, text: str) 
     assert any(
         m.startswith("phase 'x' of pipeline 'p': ") and text in m for m in messages
     ), messages
+
+
+def test_interactive_phases_are_supported(project: Path) -> None:
+    assert features(project, {"id": "x", "actor": "claude", "interactive": True}) == []
 
 
 def test_loop_on_a_human_phase_is_left_to_validation(project: Path) -> None:
@@ -539,7 +539,7 @@ def test_unsupported_features_follow_sub_pipelines(project: Path) -> None:
         project,
         {
             "name": "inner",
-            "phases": [{"id": "z", "actor": "claude", "interactive": True}],
+            "phases": [machine("z", "true", trigger={"by": "claude", "prompt": "go"})],
         },
     )
     messages = features(project, {"id": "x", "pipeline": "inner"})

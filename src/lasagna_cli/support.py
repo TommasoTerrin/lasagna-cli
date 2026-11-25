@@ -23,8 +23,6 @@ def _phase_messages(project: Project, phase: Phase) -> list[str]:
     messages: list[str] = []
     if phase.pipeline is not None:
         messages.append("sub-pipelines are not supported yet")
-    if phase.interactive:
-        messages.append("interactive phases are not supported yet")
     if phase.loop is not None:
         messages.extend(_decider_messages(project, phase.loop.until))
     messages.extend(_decider_messages(project, phase.trigger))

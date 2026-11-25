@@ -36,7 +36,7 @@ class ManualPhases:
             raise EngineError(f"phase '{phase_id}' has no command")
         output = new_output_file(run.ctx.worktree, run.ctx.run_id)
         env = run.env(phase_id, output, current.inputs)
-        code = run.run_command(command, env, inherit_stdin=True)
+        code = run.run_foreground(command, env)
         if code != 0:
             return run.fail(phase_id, "exit_code", exit_code=code)
         return self.executor.complete(

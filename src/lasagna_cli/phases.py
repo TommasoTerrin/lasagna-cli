@@ -185,7 +185,7 @@ class PhaseExecutor:
         started: dict[str, object] = {
             "phase": full,
             "actor": actor.name,
-            "mode": "headless",
+            "mode": "interactive" if phase.interactive else "headless",
             "iteration": iteration,
             "inputs": inputs,
         }
@@ -214,13 +214,15 @@ class PhaseExecutor:
         if actor.type == "agent":
 
             def run_one(command: str, is_main: bool) -> int:
+                if is_main and phase.interactive:
+                    return run.run_foreground(command, env)
                 return run.run_command(
                     command, env, timeout=timeout if is_main else None
                 )
 
             result = run_agent_cycle(
                 actor,
-                interactive=False,
+                interactive=phase.interactive,
                 run_command=run_one,
                 timeout_text=phase.timeout,
             )

@@ -18,7 +18,7 @@ from lasagna_cli.gitops import local_git_env_vars
 from lasagna_cli.model import Actor, Decider, Phase, Pipeline, Project
 from lasagna_cli.outputs import new_output_file, parse_output_file
 from lasagna_cli.resolve import Scope
-from lasagna_cli.runner import build_env
+from lasagna_cli.runner import build_env, run_foreground
 from lasagna_cli.shell import to_bash_path
 from lasagna_cli.state import PhaseState, RunState, derive_state
 
@@ -195,6 +195,15 @@ class RunEnv:
             inherit_stdin=inherit_stdin,
             bash_setting=self.ctx.project.config.shell,
             **options,
+        )
+
+    def run_foreground(self, command: str, env: Mapping[str, str]) -> int:
+        """Run a command in the terminal of the user (interactive, `phase run`)."""
+        return run_foreground(
+            command,
+            cwd=self.ctx.worktree,
+            env=env,
+            bash_setting=self.ctx.project.config.shell,
         )
 
     def run_check(
