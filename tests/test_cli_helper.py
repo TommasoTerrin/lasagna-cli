@@ -1,4 +1,9 @@
-from conftest import invoke, plain
+import subprocess
+
+import pytest
+from conftest import REAL_AGENTS, invoke, plain
+
+from lasagna_cli.shell import host_bash
 
 
 def test_plain_strips_ansi_codes() -> None:
@@ -11,3 +16,9 @@ def test_invoke_returns_the_output_without_ansi_codes(monkeypatch) -> None:
     assert result.exit_code == 0
     assert "\x1b[" not in result.output
     assert "--bind" in result.output
+
+
+@pytest.mark.parametrize("name", REAL_AGENTS)
+def test_the_real_agents_are_shadowed(name: str) -> None:
+    done = subprocess.run([host_bash(), "-c", f"{name} --version"], check=False)
+    assert done.returncode == 97

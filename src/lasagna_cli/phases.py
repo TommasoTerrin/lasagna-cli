@@ -101,7 +101,9 @@ class PhaseExecutor:
             checked = self.verify(phase, state, inputs, written)
             if checked.missing:
                 return run.fail(phase.id, "missing_output", "; ".join(checked.errors))
-            value, stop = self.deciders.loop_until(phase, iteration, inputs, state)
+            value, stop = self.deciders.loop_until(
+                phase, iteration, inputs, state, checked.outputs
+            )
             if stop is not None:
                 return stop
             finished, code = self._after_decision(

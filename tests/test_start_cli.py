@@ -134,12 +134,13 @@ def test_fixed_but_uncommitted_pipeline_is_refused_as_dirty(
 
 
 def test_unsupported_feature_is_refused(committed_project: Path, monkeypatch) -> None:
+    write_pipeline(committed_project, base_pipeline("q"))
     data = base_pipeline("p")
-    data["phases"][0]["trigger"] = {"by": "claude", "prompt": "go"}
+    data["phases"][1] = {"id": "b", "needs": ["a"], "pipeline": "q"}
     write_pipeline(committed_project, data)
     commit(committed_project)
     result = start(monkeypatch, committed_project, "p")
-    refused(result, "phase 'a' of pipeline 'p': agent deciders are not supported yet")
+    refused(result, "phase 'b' of pipeline 'p': sub-pipelines are not supported yet")
 
 
 def test_unknown_pipeline(ready: Path, monkeypatch) -> None:

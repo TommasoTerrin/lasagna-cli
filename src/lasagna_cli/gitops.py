@@ -144,3 +144,25 @@ def run_git_bytes(cwd: Path, *args: str) -> bytes:
         stderr = result.stderr.decode("utf-8", errors="replace").strip()
         raise GitError(f"git {' '.join(args)} failed: {stderr}")
     return result.stdout
+
+
+SNAPSHOT_MESSAGE = "lasagna: snapshot before a decision"
+
+
+def snapshot_commit(worktree: Path) -> str | None:
+    """Commit everything as a temporary snapshot; None when nothing changed."""
+    return commit_all(worktree, SNAPSHOT_MESSAGE)
+
+
+def restore_to(worktree: Path, sha: str) -> None:
+    """Bring the worktree back to `sha`: tracked files reset, untracked removed.
+
+    Ignored files (such as the `$LASAGNA_OUTPUT` files) stay: no `-x`.
+    """
+    _raw(worktree, "reset", "--hard", sha)
+    _raw(worktree, "clean", "-fd")
+
+
+def drop_snapshot(worktree: Path, base: str) -> None:
+    """Remove the snapshot commit, keeping its changes in the worktree."""
+    _raw(worktree, "reset", "--mixed", base)

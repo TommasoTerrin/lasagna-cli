@@ -123,12 +123,10 @@ class RunEnv:
         return EXIT_FAILED
 
     def decider_kind(self, phase_id: str, decider: Decider) -> str:
-        """ "human" or "machine"; agent deciders are refused at `start`."""
+        """ "human", "machine" or "agent": the type of the actor that decides."""
         actor = self.ctx.project.actors.get(decider.by)
-        if actor is None or actor.type not in ("human", "machine"):
-            raise EngineError(
-                f"phase '{phase_id}': agent deciders are not supported yet"
-            )
+        if actor is None:
+            raise EngineError(f"phase '{phase_id}': unknown decider '{decider.by}'")
         return actor.type
 
     def wait(self, state: RunState, phase_id: str, kind: str, by: str) -> int:

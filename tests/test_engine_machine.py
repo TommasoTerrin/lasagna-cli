@@ -508,10 +508,6 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
     ("phase", "text"),
     [
         ({"id": "x", "pipeline": "other"}, "sub-pipelines are not supported yet"),
-        (
-            machine("x", "true", trigger={"by": "claude", "prompt": "go"}),
-            "agent deciders are not supported yet",
-        ),
     ],
 )
 def test_unsupported_features_are_listed(project: Path, phase: dict, text: str) -> None:
@@ -521,8 +517,10 @@ def test_unsupported_features_are_listed(project: Path, phase: dict, text: str) 
     ), messages
 
 
-def test_interactive_phases_are_supported(project: Path) -> None:
+def test_interactive_phases_and_agent_deciders_are_supported(project: Path) -> None:
     assert features(project, {"id": "x", "actor": "claude", "interactive": True}) == []
+    trigger = {"by": "claude", "prompt": "go"}
+    assert features(project, machine("x", "true", trigger=trigger)) == []
 
 
 def test_loop_on_a_human_phase_is_left_to_validation(project: Path) -> None:
@@ -539,7 +537,7 @@ def test_unsupported_features_follow_sub_pipelines(project: Path) -> None:
         project,
         {
             "name": "inner",
-            "phases": [machine("z", "true", trigger={"by": "claude", "prompt": "go"})],
+            "phases": [{"id": "z", "pipeline": "other"}],
         },
     )
     messages = features(project, {"id": "x", "pipeline": "inner"})

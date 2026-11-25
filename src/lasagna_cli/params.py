@@ -35,6 +35,15 @@ def resolve_params(
         if name not in actor.params:
             raise UnknownParamError(name)
     values = {name: resolve_text(text, scope) for name, text in with_.items()}
+    return fill_params(actor, values)
+
+
+def fill_params(actor: Actor, values: Mapping[str, str]) -> dict[str, str]:
+    """Already resolved `values` plus the defaults, with the model alias replaced.
+
+    Raises `MissingParamError` for a required param nobody provides.
+    """
+    values = dict(values)
     for name, param in actor.params.items():
         if name in values:
             continue

@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import subprocess
 import sys
@@ -39,6 +40,27 @@ def git(*args: str, cwd: Path) -> str:
         ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
     )
     return result.stdout.strip()
+
+
+REAL_AGENTS = ("claude", "opencode")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def no_real_agents(tmp_path_factory: pytest.TempPathFactory):
+    """Shadow the real agent CLIs: a test that reaches one fails with exit 97."""
+    folder = tmp_path_factory.mktemp("no-real-agents")
+    for name in REAL_AGENTS:
+        stub = folder / name
+        stub.write_text(
+            '#!/bin/sh\necho "tests must not call $0" >&2\nexit 97\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+        stub.chmod(0o755)
+    previous = os.environ["PATH"]
+    os.environ["PATH"] = str(folder) + os.pathsep + previous
+    yield folder
+    os.environ["PATH"] = previous
 
 
 @pytest.fixture
