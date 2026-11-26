@@ -1,12 +1,10 @@
 from pathlib import Path
 
 import pytest
-from conftest import drive_run, git, write_pipeline
-from typer.testing import CliRunner
+from conftest import drive_run, git, invoke, write_pipeline
 
 from lasagna_cli import engine as engine_module
 from lasagna_cli import phases as phases_module
-from lasagna_cli.cli import app
 from lasagna_cli.eventlog import EventWriter, read_events
 from lasagna_cli.locking import FileLock
 from lasagna_cli.runner import run_shell
@@ -167,12 +165,12 @@ def test_start_exits_130_when_interrupted_and_releases_the_lock(
     setup(committed_project, machine("a", "echo a > a.txt"))
     monkeypatch.setattr(phases_module, "commit_all", raise_interrupt)
     monkeypatch.chdir(committed_project)
-    result = CliRunner().invoke(app, ["start", "p"])
+    result = invoke("start", "p")
     assert result.exit_code == 130, result.output
     assert FileLock.is_free(run_lock_path(committed_project, "p_01"))
     events = read_events(run_log_path(committed_project, "p_01"))
     assert events[-1]["status"] == "failed"
-    status = CliRunner().invoke(app, ["status", "p_01"])
+    status = invoke("status", "p_01")
     assert "failed" in status.output
 
 
@@ -184,7 +182,7 @@ def test_start_interrupted_before_the_run_exists_writes_no_log(
 
     monkeypatch.setattr(cli_module, "add_worktree", raise_interrupt)
     monkeypatch.chdir(committed_project)
-    result = CliRunner().invoke(app, ["start", "p"])
+    result = invoke("start", "p")
     assert result.exit_code == 130, result.output
     assert "interrupted" in result.output
     assert not run_log_path(committed_project, "p_01").exists()
@@ -199,9 +197,9 @@ def test_phase_done_interrupted_exits_130(
         {"id": "a", "actor": "human", "with": {"instructions": "x"}},
     )
     monkeypatch.chdir(committed_project)
-    assert CliRunner().invoke(app, ["start", "p"]).exit_code == 3
+    assert invoke("start", "p").exit_code == 3
     monkeypatch.setattr(phases_module, "commit_all", raise_interrupt)
-    result = CliRunner().invoke(app, ["phase", "done"])
+    result = invoke("phase", "done")
     assert result.exit_code == 130, result.output
     events = read_events(run_log_path(committed_project, "p_01"))
     assert [e["event"] for e in events[-2:]] == ["phase_failed", "run_completed"]

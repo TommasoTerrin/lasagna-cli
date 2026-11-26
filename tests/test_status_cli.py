@@ -1,12 +1,8 @@
 import json
-import re
 import shutil
 from pathlib import Path
 
-from conftest import ev, make_log, run_started
-from typer.testing import CliRunner
-
-from lasagna_cli.cli import app
+from conftest import ev, invoke, make_log, run_started
 
 HERE = Path(__file__).parent
 FIXTURES = HERE / "fixtures" / "runs"
@@ -21,7 +17,7 @@ def install_fixtures(project):
 
 def status(monkeypatch, cwd, *args):
     monkeypatch.chdir(cwd)
-    return CliRunner().invoke(app, ["status", *args])
+    return invoke("status", *args)
 
 
 def test_status_lists_root_runs(project, monkeypatch):
@@ -120,6 +116,6 @@ def test_interrupted_run_shows_resume_hint(project, monkeypatch):
 
 
 def test_status_help_mentions_json():
-    result = CliRunner().invoke(app, ["status", "--help"])
-    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)  # CI forces colours
+    result = invoke("status", "--help")
+    plain = result.output
     assert result.exit_code == 0 and "--json" in plain

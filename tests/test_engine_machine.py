@@ -507,26 +507,7 @@ def test_supported_pipeline_has_no_refused_features(project: Path) -> None:
 @pytest.mark.parametrize(
     ("phase", "text"),
     [
-        (
-            {
-                "id": "x",
-                "actor": "human",
-                "loop": {
-                    "max_iterations": 2,
-                    "until": {"by": "machine", "check": "true"},
-                },
-            },
-            "loop on a phase run by a human is not supported yet",
-        ),
-        (
-            {"id": "x", "actor": "claude", "interactive": True},
-            "interactive phases are not supported yet",
-        ),
         ({"id": "x", "pipeline": "other"}, "sub-pipelines are not supported yet"),
-        (
-            machine("x", "true", trigger={"by": "claude", "prompt": "go"}),
-            "agent deciders are not supported yet",
-        ),
     ],
 )
 def test_unsupported_features_are_listed(project: Path, phase: dict, text: str) -> None:
@@ -536,12 +517,27 @@ def test_unsupported_features_are_listed(project: Path, phase: dict, text: str) 
     ), messages
 
 
+def test_interactive_phases_and_agent_deciders_are_supported(project: Path) -> None:
+    assert features(project, {"id": "x", "actor": "claude", "interactive": True}) == []
+    trigger = {"by": "claude", "prompt": "go"}
+    assert features(project, machine("x", "true", trigger=trigger)) == []
+
+
+def test_loop_on_a_human_phase_is_left_to_validation(project: Path) -> None:
+    phase = {
+        "id": "x",
+        "actor": "human",
+        "loop": {"max_iterations": 2, "until": {"by": "machine", "check": "true"}},
+    }
+    assert features(project, phase) == []
+
+
 def test_unsupported_features_follow_sub_pipelines(project: Path) -> None:
     write_pipeline(
         project,
         {
             "name": "inner",
-            "phases": [{"id": "z", "actor": "claude", "interactive": True}],
+            "phases": [{"id": "z", "pipeline": "other"}],
         },
     )
     messages = features(project, {"id": "x", "pipeline": "inner"})

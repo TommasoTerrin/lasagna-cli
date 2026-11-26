@@ -1,10 +1,8 @@
 from pathlib import Path
 
 import pytest
-from conftest import git, write_pipeline
-from typer.testing import CliRunner
+from conftest import git, invoke, write_pipeline
 
-from lasagna_cli.cli import app
 from lasagna_cli.refs import RefError, parse_decide_args, resolve_phase, resolve_run
 from lasagna_cli.runtree import load_run_tree
 
@@ -33,7 +31,7 @@ def waiting_project(committed_project: Path, monkeypatch: pytest.MonkeyPatch) ->
     git("add", "-A", cwd=committed_project)
     git("commit", "-m", "p", cwd=committed_project)
     monkeypatch.chdir(committed_project)
-    result = CliRunner().invoke(app, ["start", "p"])
+    result = invoke("start", "p")
     assert result.exit_code == 3, result.output
     return committed_project
 
@@ -91,7 +89,7 @@ def test_resolve_run_without_waiting_runs(committed_project: Path) -> None:
 def test_resolve_run_with_several_waiting_runs_lists_them(
     waiting_project: Path,
 ) -> None:
-    assert CliRunner().invoke(app, ["start", "p"]).exit_code == 3
+    assert invoke("start", "p").exit_code == 3
     with pytest.raises(RefError) as info:
         resolve_run(waiting_project, None)
     assert "p_01" in str(info.value) and "p_02" in str(info.value)
@@ -117,7 +115,7 @@ def test_resolve_phase_nothing_waiting(
     git("add", "-A", cwd=committed_project)
     git("commit", "-m", "p", cwd=committed_project)
     monkeypatch.chdir(committed_project)
-    assert CliRunner().invoke(app, ["start", "p"]).exit_code == 0
+    assert invoke("start", "p").exit_code == 0
     tree = load_run_tree(committed_project, "p_01")
     with pytest.raises(RefError, match="no phase is waiting"):
         resolve_phase(tree, None)

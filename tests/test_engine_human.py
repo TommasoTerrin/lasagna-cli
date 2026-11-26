@@ -230,7 +230,7 @@ def test_human_phases_and_deciders_are_no_longer_refused(project: Path) -> None:
     assert unsupported_features(load_project(project), "p") == []
 
 
-def test_agent_deciders_are_still_refused(project: Path) -> None:
+def test_agent_deciders_are_supported(project: Path) -> None:
     write_pipeline(
         project,
         {
@@ -245,5 +245,4 @@ def test_agent_deciders_are_still_refused(project: Path) -> None:
             ],
         },
     )
-    messages = unsupported_features(load_project(project), "p")
-    assert any("agent deciders are not supported yet" in m for m in messages)
+    assert unsupported_features(load_project(project), "p") == []

@@ -101,7 +101,9 @@ class PhaseExecutor:
             checked = self.verify(phase, state, inputs, written)
             if checked.missing:
                 return run.fail(phase.id, "missing_output", "; ".join(checked.errors))
-            value, stop = self.deciders.loop_until(phase, iteration, inputs, state)
+            value, stop = self.deciders.loop_until(
+                phase, iteration, inputs, state, checked.outputs
+            )
             if stop is not None:
                 return stop
             finished, code = self._after_decision(
@@ -185,14 +187,16 @@ class PhaseExecutor:
         started: dict[str, object] = {
             "phase": full,
             "actor": actor.name,
-            "mode": "headless",
+            "mode": "interactive" if phase.interactive else "headless",
             "iteration": iteration,
             "inputs": inputs,
         }
         timeout = self._timeout(phase)
+        output = self._output_file(phase, iteration)
         if actor.type == "agent":
             main = main_skill_path(ctx.pipeline, phase) if phase.main_skill else None
-            scope = run.scope(state, inputs=inputs, main_skill=main)
+            relative = output.relative_to(ctx.worktree).as_posix()
+            scope = run.scope(state, inputs=inputs, main_skill=main, output=relative)
             try:
                 params = resolve_params(actor, phase.with_, scope)
             except UnresolvedError as error:
@@ -206,20 +210,21 @@ class PhaseExecutor:
                 **extra,
             }
         run.writer.append("phase_started", **started)
-        output = self._output_file(phase, iteration)
         env = run.env(phase.id, output, inputs, extra)
         clock = time.monotonic()
 
         if actor.type == "agent":
 
             def run_one(command: str, is_main: bool) -> int:
+                if is_main and phase.interactive:
+                    return run.run_foreground(command, env)
                 return run.run_command(
                     command, env, timeout=timeout if is_main else None
                 )
 
             result = run_agent_cycle(
                 actor,
-                interactive=False,
+                interactive=phase.interactive,
                 run_command=run_one,
                 timeout_text=phase.timeout,
             )

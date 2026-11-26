@@ -29,7 +29,7 @@ def script(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *actions: dict) -> P
     return path
 
 
-def agent_phase(id: str = "a", *needs: str, **extra) -> dict:
+def agent_phase(id: str = "a", /, *needs: str, **extra: object) -> dict:
     phase: dict = {
         "id": id,
         "actor": "fake",
@@ -258,3 +258,56 @@ def test_an_unresolvable_param_is_missing_input(fake_project: Path) -> None:
 def test_agent_actors_and_timeouts_are_no_longer_refused(fake_project: Path) -> None:
     setup(fake_project, agent_phase(timeout="5s"))
     assert unsupported_features(load_project(fake_project), "p") == []
+
+
+def read_lines(path: Path) -> list[dict]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def test_lasagna_output_names_the_output_file_of_the_phase(
+    fake_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = tmp_path / "log.jsonl"
+    probe = tmp_path / "probe.jsonl"
+    script(
+        tmp_path,
+        monkeypatch,
+        {"log": str(log)},
+        {"probe": str(probe)},
+        {"prompt_file": "v=x\n"},
+    )
+    phase = agent_phase(outputs={"v": {"type": "value"}})
+    phase["with"] = {"prompt": "${{ lasagna.output }}"}
+    setup(fake_project, phase)
+    result = drive_run(fake_project, "p")
+    assert result.code == 0
+    env = read_lines(log)[0]["env"]
+    relative = env["LASAGNA_PARAM_PROMPT"]
+    assert not Path(relative).is_absolute()
+    assert "\\" not in relative
+    assert (result.worktree / relative).resolve() == Path(
+        env["LASAGNA_OUTPUT"]
+    ).resolve()
+    assert read_lines(probe) == [{"size": 0}]
+    assert of_kind(result.events, "phase_completed")[0]["outputs"] == {"v": "x"}
+
+
+def test_lasagna_output_follows_the_iteration_of_a_loop(
+    fake_project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = tmp_path / "log.jsonl"
+    script(tmp_path, monkeypatch, {"log": str(log)}, {"prompt_file": "v=x\n"})
+    phase = agent_phase(
+        outputs={"v": {"type": "value"}},
+        loop={
+            "max_iterations": 3,
+            "until": {"by": "machine", "check": '[ "$LASAGNA_ITERATION" -ge 2 ]'},
+        },
+    )
+    phase["with"] = {"prompt": "${{ lasagna.output }}"}
+    setup(fake_project, phase)
+    result = drive_run(fake_project, "p")
+    assert result.code == 0
+    prompts = [line["env"]["LASAGNA_PARAM_PROMPT"] for line in read_lines(log)]
+    assert prompts == [".lasagna/runs/p_01.p-a.1.out", ".lasagna/runs/p_01.p-a.2.out"]
+    assert of_kind(result.events, "phase_completed")[0]["outputs"] == {"v": "x"}

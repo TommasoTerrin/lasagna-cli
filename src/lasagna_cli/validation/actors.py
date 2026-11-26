@@ -5,7 +5,7 @@ from lasagna_cli.model import Actor, Decider, Phase, Pipeline, Project
 
 
 def check_actors(project: Project) -> list[Issue]:
-    """Rules A1-A6 and D1-D3. Unknown actors and pipelines are skipped."""
+    """Rules A1-A7 and D1-D3. Unknown actors and pipelines are skipped."""
     issues: list[Issue] = []
     for pipeline in project.pipelines.values():
         for phase in pipeline.phases:
@@ -28,6 +28,12 @@ def _phase(project: Project, pipeline: Pipeline, phase: Phase) -> list[Issue]:
             actor.commands is not None and actor.commands.run_interactive
         ):
             add("interactive", "requires an agent with commands.run_interactive")
+        if phase.loop is not None and actor.type == "human":
+            add(
+                "loop",
+                "not allowed on a phase run by a human: the phase is closed only "
+                "when the person is done",
+            )
         if phase.has_harness and actor.type != "agent":
             add("harness", "only allowed on phases run by an agent")
     child = project.pipelines.get(phase.pipeline) if phase.pipeline else None

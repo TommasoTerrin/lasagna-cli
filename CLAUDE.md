@@ -68,6 +68,8 @@ Ask before adding a runtime dependency.
   agents: actor files whose commands run a Python script from `tests/fakes/`.
 - Tests touching git use real repositories created in `tmp_path`.
 - Tests must pass on Windows, Linux and macOS.
+- tests/conftest.py puts fake claude and opencode first on PATH for the whole
+  session (they exit with 97). Never remove or bypass this guard.
 
 ## Workflow
 
@@ -79,6 +81,8 @@ Ask before adding a runtime dependency.
   subagent-driven-development, requesting-code-review, receiving-code-review,
   systematic-debugging, dispatching-parallel-agents. If a bug resists, stop and
   explain what you tried.
+- Brainstorming is allowed only for new features not covered by PROTOCOL.md,
+  never to redesign what the protocol already defines.
 - One branch per milestone. Stop at the end of each milestone for review and
   do not start the next one without approval.
 - Small commits with imperative English messages.

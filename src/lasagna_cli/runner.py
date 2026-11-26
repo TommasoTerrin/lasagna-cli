@@ -87,6 +87,30 @@ def kill_tree(pid: int) -> None:
         pass
 
 
+def run_foreground(
+    command: str,
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    bash_setting: str = "auto",
+    _wait: Callable[[subprocess.Popen], int] | None = None,
+) -> int:
+    """Run a command in the terminal of the user and return its exit code.
+
+    The command stays in the process group of the terminal with stdin, stdout
+    and stderr inherited, and has no timeout. Lasagna ignores SIGINT while it
+    runs, so a Ctrl+C reaches only the command. `_wait` exists only for tests.
+    """
+    previous = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        proc = subprocess.Popen(
+            [host_bash(bash_setting), "-c", command], cwd=cwd, env=dict(env)
+        )
+        return (_wait or (lambda p: p.wait()))(proc)
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
 def run_shell(
     command: str,
     *,

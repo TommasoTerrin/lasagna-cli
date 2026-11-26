@@ -86,6 +86,17 @@ CASES = {
         "phases[0].interactive",
         "requires an agent with commands.run_interactive",
     ),
+    "A7-human-loop": (
+        lambda d: (
+            human(d, instructions="x"),
+            d["phases"][0].update(
+                loop={"max_iterations": 2, "until": {"by": "machine", "check": "true"}}
+            ),
+        ),
+        "phases[0].loop",
+        "not allowed on a phase run by a human: the phase is closed only when "
+        "the person is done",
+    ),
     "A5": (
         lambda d: d["phases"][0].update(harness={"main_skill": False}),
         "phases[0].harness",

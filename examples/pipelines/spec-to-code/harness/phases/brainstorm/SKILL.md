@@ -27,9 +27,9 @@ implement item by item.
    each starting with `- [ ]`. Each item must be small, concrete and checkable
    (a file exists, a command succeeds, a behaviour is observable). The
    Checklist is the only place where `- [ ]` may appear.
-3. Write the folder as a line `spec-dir=<folder>` in the file named by the
-   `LASAGNA_OUTPUT` environment variable, for example:
-   `echo "spec-dir=specs/todo-app" >> "$LASAGNA_OUTPUT"`.
+3. Write the folder as a line `spec-dir=<folder>` in the output file named in
+   the prompt, for example `spec-dir=specs/todo-app`. Edit the file directly:
+   do not run a shell command for it.
 4. Tell the user to close the session. Lasagna will then wait for them to
    start the implementation phase.
 

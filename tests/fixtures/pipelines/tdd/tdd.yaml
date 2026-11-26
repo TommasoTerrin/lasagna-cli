@@ -24,7 +24,7 @@ phases:
       prompt: >-
         Follow the skill at ${{ harness.main_skill }}.
         Write a failing test for the problem described in ${{ inputs.report }}
-        and write its path as a line test-file=... in the file $LASAGNA_OUTPUT.
+        and write its path as a line test-file=... in the file ${{ lasagna.output }}.
     outputs:
       test-file:
         type: value

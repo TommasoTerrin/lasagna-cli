@@ -3,13 +3,21 @@ name: claude
 description: Claude Code launched from the command line.
 
 # Params a phase can pass in `with`.
-# Commands receive them as LASAGNA_PARAM_PROMPT and LASAGNA_PARAM_MODEL.
+# Commands receive them as LASAGNA_PARAM_PROMPT, LASAGNA_PARAM_MODEL and
+# LASAGNA_PARAM_PERMISSION_MODE.
 params:
   prompt:
     required: true
   model:
     required: false
     description: An alias from `models` or a model id.
+  permission-mode:
+    required: false
+    default: acceptEdits
+    description: >-
+      Passed to --permission-mode. acceptEdits lets Claude edit files in the
+      worktree but not run commands; phases that must run commands need a
+      broader mode, for example bypassPermissions.
 
 # Phases use the alias, so the agent can be swapped at start time
 # (--bind phase=opencode) without touching the pipeline.
@@ -21,8 +29,14 @@ models:
 commands:
   check:
     - command -v claude
-  run: claude -p "$LASAGNA_PARAM_PROMPT" ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"}
-  run_interactive: claude ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"} "$LASAGNA_PARAM_PROMPT"
+  run: >-
+    claude -p "$LASAGNA_PARAM_PROMPT"
+    --permission-mode "$LASAGNA_PARAM_PERMISSION_MODE"
+    ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"}
+  run_interactive: >-
+    claude --permission-mode "$LASAGNA_PARAM_PERMISSION_MODE"
+    ${LASAGNA_PARAM_MODEL:+--model "$LASAGNA_PARAM_MODEL"}
+    "$LASAGNA_PARAM_PROMPT"
 
   # Example, disabled in the MVP: inject the main skill into the worktree.
   # It stays confined to the run, and cleanup removes it before Lasagna commits.

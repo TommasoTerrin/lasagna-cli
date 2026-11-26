@@ -7,4 +7,4 @@ description: Red phase of the tdd Lasagna pipeline. Writes a test that reproduce
 
 Write a single, minimal test that reproduces the problem described in the
 document named in the prompt. Do not change production code. Write the test
-path as a line `test-file=...` in the file named by `LASAGNA_OUTPUT`.
+path as a line `test-file=...` in the output file named in the prompt.

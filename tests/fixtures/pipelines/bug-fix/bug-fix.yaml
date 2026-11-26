@@ -47,7 +47,7 @@ phases:
         Follow the skill at ${{ harness.main_skill }}.
         The bug is described in ${{ inputs.issue-file }}.
         Write the report to bugs/${{ inputs.issue }}/report.md and the severity
-        (low, medium or high) as a line severity=... in the file $LASAGNA_OUTPUT.
+        (low, medium or high) as a line severity=... in the file ${{ lasagna.output }}.
     outputs:
       report:
         type: file

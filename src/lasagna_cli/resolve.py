@@ -17,7 +17,7 @@ def describe(ref: Ref) -> str:
     """The reference as it is written inside `${{ }}`."""
     if ref.scope == "phases":
         return f"phases.{ref.phase}.outputs.{ref.name}"
-    if ref.scope == "harness.main_skill":
+    if ref.scope in ("harness.main_skill", "lasagna.output"):
         return ref.scope
     return f"{ref.scope}.{ref.name}"
 
@@ -31,6 +31,7 @@ class Scope:
     inputs: dict[str, str] | None = None
     outputs: dict[str, str] | None = None
     main_skill: str | None = None
+    output: str | None = None
 
 
 def _lookup(ref: Ref, scope: Scope) -> str:
@@ -43,6 +44,8 @@ def _lookup(ref: Ref, scope: Scope) -> str:
         value = None if scope.inputs is None else scope.inputs.get(ref.name or "")
     elif ref.scope == "outputs":
         value = None if scope.outputs is None else scope.outputs.get(ref.name or "")
+    elif ref.scope == "lasagna.output":
+        value = scope.output
     else:
         value = scope.main_skill
     if value is None:

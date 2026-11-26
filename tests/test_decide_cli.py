@@ -1,10 +1,8 @@
 from pathlib import Path
 
 import pytest
-from conftest import git, write_pipeline
-from typer.testing import CliRunner
+from conftest import git, invoke, write_pipeline
 
-from lasagna_cli.cli import app
 from lasagna_cli.eventlog import read_events
 from lasagna_cli.locking import FileLock
 from lasagna_cli.runs import run_lock_path, run_log_path
@@ -27,7 +25,7 @@ def commit_pipeline(root: Path, *phases: dict) -> None:
 
 def run(monkeypatch: pytest.MonkeyPatch, root: Path, *args: str):
     monkeypatch.chdir(root)
-    return CliRunner().invoke(app, list(args))
+    return invoke(*args)
 
 
 def events(root: Path, run_id: str = "p_01") -> list[dict]:
@@ -185,5 +183,5 @@ def test_decide_after_the_run_is_done_exits_2(
 
 
 def test_decide_help_documents_the_arguments() -> None:
-    result = CliRunner().invoke(app, ["decide", "--help"])
+    result = invoke("decide", "--help")
     assert "VALUE" in result.output or "value" in result.output

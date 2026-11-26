@@ -1,4 +1,6 @@
 import json
+import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterable
@@ -7,8 +9,30 @@ from pathlib import Path
 
 import pytest
 import yaml
+from typer.testing import CliRunner
 
+from lasagna_cli.cli import app
 from lasagna_cli.scaffold import init_project
+
+_ANSI = re.compile(r"\[[0-9;?]*[A-Za-z]")
+
+
+def plain(text: str) -> str:
+    """The text without ANSI escape codes (CI forces colours)."""
+    return _ANSI.sub("", text)
+
+
+@dataclass(frozen=True)
+class CliResult:
+    exit_code: int
+    output: str
+    exception: BaseException | None
+
+
+def invoke(*args: str) -> CliResult:
+    """Run `lasagna <args>`; every test on CLI output goes through here."""
+    result = CliRunner().invoke(app, list(args))
+    return CliResult(result.exit_code, plain(result.output), result.exception)
 
 
 def git(*args: str, cwd: Path) -> str:
@@ -16,6 +40,27 @@ def git(*args: str, cwd: Path) -> str:
         ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
     )
     return result.stdout.strip()
+
+
+REAL_AGENTS = ("claude", "opencode")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def no_real_agents(tmp_path_factory: pytest.TempPathFactory):
+    """Shadow the real agent CLIs: a test that reaches one fails with exit 97."""
+    folder = tmp_path_factory.mktemp("no-real-agents")
+    for name in REAL_AGENTS:
+        stub = folder / name
+        stub.write_text(
+            '#!/bin/sh\necho "tests must not call $0" >&2\nexit 97\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+        stub.chmod(0o755)
+    previous = os.environ["PATH"]
+    os.environ["PATH"] = str(folder) + os.pathsep + previous
+    yield folder
+    os.environ["PATH"] = previous
 
 
 @pytest.fixture

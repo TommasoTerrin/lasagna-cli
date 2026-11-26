@@ -18,7 +18,7 @@ from lasagna_cli.gitops import local_git_env_vars
 from lasagna_cli.model import Actor, Decider, Phase, Pipeline, Project
 from lasagna_cli.outputs import new_output_file, parse_output_file
 from lasagna_cli.resolve import Scope
-from lasagna_cli.runner import build_env
+from lasagna_cli.runner import build_env, run_foreground
 from lasagna_cli.shell import to_bash_path
 from lasagna_cli.state import PhaseState, RunState, derive_state
 
@@ -88,11 +88,22 @@ class RunEnv:
             if p.state == "done"
         }
 
-    def scope(self, state: RunState, **parts: dict[str, str] | None) -> Scope:
+    def scope(
+        self,
+        state: RunState,
+        *,
+        inputs: dict[str, str] | None = None,
+        outputs: dict[str, str] | None = None,
+        main_skill: str | None = None,
+        output: str | None = None,
+    ) -> Scope:
         return Scope(
             pipeline_inputs=self.ctx.inputs,
             phase_outputs=self.done_outputs(state),
-            **parts,
+            inputs=inputs,
+            outputs=outputs,
+            main_skill=main_skill,
+            output=output,
         )
 
     def fail(
@@ -112,12 +123,10 @@ class RunEnv:
         return EXIT_FAILED
 
     def decider_kind(self, phase_id: str, decider: Decider) -> str:
-        """ "human" or "machine"; agent deciders are refused at `start`."""
+        """ "human", "machine" or "agent": the type of the actor that decides."""
         actor = self.ctx.project.actors.get(decider.by)
-        if actor is None or actor.type not in ("human", "machine"):
-            raise EngineError(
-                f"phase '{phase_id}': agent deciders are not supported yet"
-            )
+        if actor is None:
+            raise EngineError(f"phase '{phase_id}': unknown decider '{decider.by}'")
         return actor.type
 
     def wait(self, state: RunState, phase_id: str, kind: str, by: str) -> int:
@@ -184,6 +193,15 @@ class RunEnv:
             inherit_stdin=inherit_stdin,
             bash_setting=self.ctx.project.config.shell,
             **options,
+        )
+
+    def run_foreground(self, command: str, env: Mapping[str, str]) -> int:
+        """Run a command in the terminal of the user (interactive, `phase run`)."""
+        return run_foreground(
+            command,
+            cwd=self.ctx.worktree,
+            env=env,
+            bash_setting=self.ctx.project.config.shell,
         )
 
     def run_check(

@@ -10,6 +10,12 @@ SHELL_MESSAGE = (
     "expressions are not allowed in shell commands; use environment variables"
 )
 
+OUTPUT_MESSAGE = (
+    "lasagna.output is only allowed in the with of an agent phase"
+    " and in the prompt of an agent decision"
+)
+OUTPUT = "lasagna.output"
+
 _INPUTS = frozenset({"pipeline.inputs", "phases"})
 _WITH = frozenset({"pipeline.inputs", "phases", "inputs", "harness.main_skill"})
 _PATH = frozenset(
@@ -33,7 +39,9 @@ def _actor_commands(project: Project) -> list[Issue]:
     for actor in project.actors.values():
         if actor.commands is None:
             continue
-        fields = {f"commands.check[{j}]": c for j, c in enumerate(actor.commands.check)}
+        fields: dict[str, str | None] = {
+            f"commands.check[{j}]": c for j, c in enumerate(actor.commands.check)
+        }
         fields["commands.inject"] = actor.commands.inject
         fields["commands.run"] = actor.commands.run
         fields["commands.run_interactive"] = actor.commands.run_interactive
@@ -84,11 +92,12 @@ def _phase(
         if text is not None and has_expression(text):
             report(f"{prefix}.{field}", SHELL_MESSAGE)
 
+    with_allowed = _WITH | {OUTPUT} if _is_agent(project, phase.actor) else _WITH
     for key, text in phase.with_.items():
         if key == "command":
             shell("with.command", text)
         else:
-            scan(f"with.{key}", text, _WITH)
+            scan(f"with.{key}", text, with_allowed)
     for key, text in phase.inputs.items():
         scan(f"inputs.{key}", text, _INPUTS)
     for key, output in phase.outputs.items():
@@ -102,8 +111,16 @@ def _phase(
         if decider is None:
             continue
         shell(f"{label}.check", decider.check)
-        scan(f"{label}.prompt", decider.prompt, allowed)
+        prompt_allowed = (
+            allowed | {OUTPUT} if _is_agent(project, decider.by) else allowed
+        )
+        scan(f"{label}.prompt", decider.prompt, prompt_allowed)
         scan(f"{label}.instructions", decider.instructions, allowed)
+
+
+def _is_agent(project: Project, actor: str | None) -> bool:
+    found = project.actors.get(actor or "")
+    return found is not None and found.type == "agent"
 
 
 def _scan(
@@ -122,6 +139,9 @@ def _scan(
         report(field, f"invalid expression: {error}")
         return
     for ref in refs:
+        if ref.scope == OUTPUT and OUTPUT not in allowed:
+            report(field, OUTPUT_MESSAGE)
+            continue
         if ref.scope not in allowed:
             suffix = "" if ref.scope == "harness.main_skill" else ".*"
             report(field, f"{ref.scope}{suffix} is not allowed here")

@@ -2,9 +2,8 @@ from pathlib import Path
 
 import pytest
 from conftest import git, write_pipeline
-from typer.testing import CliRunner
+from conftest import invoke as lasagna
 
-from lasagna_cli.cli import app
 from lasagna_cli.eventlog import read_events
 from lasagna_cli.locking import FileLock
 from lasagna_cli.runs import run_lock_path, run_log_path
@@ -27,7 +26,7 @@ def commit_pipeline(root: Path, name: str, *phases: dict) -> None:
 
 def invoke(monkeypatch: pytest.MonkeyPatch, root: Path, *args: str):
     monkeypatch.chdir(root)
-    return CliRunner().invoke(app, list(args))
+    return lasagna(*args)
 
 
 @pytest.fixture
@@ -152,6 +151,6 @@ def test_clean_with_several_candidates_lists_them(finished: Path, monkeypatch) -
 
 def test_cancel_and_clean_help() -> None:
     for command in ("cancel", "clean"):
-        result = CliRunner().invoke(app, [command, "--help"])
+        result = lasagna(command, "--help")
         assert result.exit_code == 0
         assert "RUN" in result.output or "run" in result.output
